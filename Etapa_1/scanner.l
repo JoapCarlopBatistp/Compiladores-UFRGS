@@ -13,7 +13,6 @@
 
 [0-9]+ {return TK_LI_INTEIRO;}                  //Exige pelo menos 1 valor seguido de n digitos
 [0-9]*\.[0-9]+ {return TK_LI_DECIMAL;}          //Primeiro inteiro é opcional (fechamento de kleene). Dígitos após a vírgula são obrigatórios (pelo menos 1)
-\..* return TK_ER;                              //Rede de proteção caso tenha "." sem decimais posteriores
 
 
 tipo return TK_TIPO;                            //Tipo
@@ -26,7 +25,7 @@ retorna return TK_RETORNA;                      //Retorna
 enquanto return TK_ENQUANTO;                    //Enquanto
 com return TK_COM;                              //Com
 
-[!*\/%\+-\>\<\[\]\(\)=,;&\|] return yytext[0];  //Retorna o decimal de cada um dos caracteres do afabeto listado
+[!*\/%\+\-\>\<\[\]\(\)=,;&\|] return yytext[0];  //Retorna o decimal de cada um dos caracteres do afabeto listado
 
 
 
