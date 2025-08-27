@@ -1,5 +1,5 @@
 CC = gcc
-EXECUTABLE = my_program
+EXECUTABLE = etapa1
 SOURCES_C = main.c
 SOURCES_L = scanner.l
 GENERATED_C = lex.yy.c
