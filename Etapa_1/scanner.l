@@ -9,7 +9,7 @@
 %%
     //ESpaço reservado para Expressões Regulares
 \/\/.*\n                                        //Isso ignora duas barras até um \n (quebra de linha). .* é o fechamento de kleene dos próximos valores.
-[[:blank:]\n]                                   //Ignora todo tipo de espaço e o \n
+[ \t\r\n]                                       //Ignora todo tipo de espaço e o \n
 
 [0-9]+ {return TK_LI_INTEIRO;}                  //Exige pelo menos 1 valor seguido de n digitos
 [0-9]*\.[0-9]+ {return TK_LI_DECIMAL;}          //Primeiro inteiro é opcional (fechamento de kleene). Dígitos após a vírgula são obrigatórios (pelo menos 1)

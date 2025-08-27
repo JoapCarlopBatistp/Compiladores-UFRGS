@@ -1,22 +1,19 @@
-CC = gcc
-EXECUTABLE = etapa1
-SOURCES_C = main.c
-SOURCES_L = scanner.l
-GENERATED_C = lex.yy.c
-OBJECTS = $(SOURCES_C:.c=.o) $(GENERATED_C:.c=.o)
+CC=gcc
+FLEX=flex
 
-all: $(EXECUTABLE)
+DEPS = tokens.h
+OBJ = main.o lex.yy.o
 
-$(EXECUTABLE): $(OBJECTS)
-	$(CC) $(OBJECTS) -o $(EXECUTABLE) -lfl
+all: etapa1
 
-%.o: %.c
-	$(CC) -c $< -o $@
+lex.yy.c: scanner.l
+	$(FLEX) scanner.l
+	
+%.o: %.c $(DEPS)
+	$(CC) $< -c
+		
+etapa1: $(OBJ)
+	$(CC) $^ -o $@
 
-$(GENERATED_C): $(SOURCES_L)
-	flex $<
-
-.PHONY: clean
 clean:
-	rm -f $(EXECUTABLE) $(OBJECTS) $(GENERATED_C)
-
+	rm lex.yy.c etapa1 main.o lex.yy.o
