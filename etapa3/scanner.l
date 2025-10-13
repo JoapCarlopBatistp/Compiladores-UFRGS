@@ -70,7 +70,6 @@ valor_t* alocar_valor(token_type_t type){       //Função que dá malloc para o
  	
  	aux->line = get_line_number();                      //Valor inteiro da linha é colocado no struct de valor do token
  	aux->type = type;                                   //Valor token_type_t é colocado no struct de valor do token
- 	
  	aux->lexema = strdup(yytext);                       //Lexema do struct de valor do token recebe o strdup
  	if (aux->lexema == NULL){                           //Checa se foi bem sucedido
   		printf("aux->lexema = NULL");                   //Comentário para depuração

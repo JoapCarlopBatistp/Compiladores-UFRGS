@@ -6,7 +6,10 @@
 int yylex(void);
 void yyerror (char const *mensagem);
 extern int get_line_number();
+
+extern asd_tree_t *arvore;
 %}
+
 
 %union {
  asd_tree_t *no;
@@ -35,6 +38,48 @@ extern int get_line_number();
 %token TK_LI_DECIMAL  // literal decimal
 %token TK_ER          // erro léxico
 
+//Tipos nós da árvore
+
+%type<no> programa
+%type<no> lista
+%type<no> elemento
+%type<no> declaracao_variavel_global
+%type<no> tipo
+%type<no> definicao_funcao
+%type<no> cabecalho
+%type<no> lista_parametros
+%type<no> lista_parametros_opcionais
+%type<no> parametro
+%type<no> comando_simples
+%type<no> bloco_comando
+%type<no> sequencia_comando_simples
+%type<no> declaracao_variavel_local
+%type<no> inicializacao
+%type<no> literal
+%type<no> comando_atribuicao
+%type<no> chamada_funcao
+%type<no> argumentos
+%type<no> argumento
+%type<no> comando_retorno
+%type<no> construcao_fluxo_controle
+%type<no> construcao_condicional
+%type<no> bloco_comando_opcional
+%type<no> construcao_iterativa
+%type<no> expressao
+%type<no> expressao_or
+%type<no> expressao_and
+%type<no> expressao_igual_desigual
+%type<no> expressao_relacional
+%type<no> expressao_soma_subtracao
+%type<no> expressao_mult_div_mod
+%type<no> expressao_unitario
+%type<no> expressao_pos_fixado
+%type<no> expressao_primario
+
+//Tipo valor_lexico
+
+%type<valor_lexico> literal
+
 %%
 
 // Deve-se realizar a remoção de conflitos Reduce/Reduce e Shift/Reduce de todas as regras
@@ -46,12 +91,20 @@ extern int get_line_number();
 // são separados pelo operador vírgula e a lista é terminada pelo operador ponto-e-vírgula.
 // Cada elemento dessa lista é ou uma definição de função ou uma declaração de variável.
 
-programa: %empty
-		| lista ';';
+programa: %empty {arvore = NULL;} 					//Caso do programa vazio
+		| lista ';'{arvore = $1;};					//Primeiro elemento
 
-lista: %empty
-	 | elemento
-	 | lista ',' elemento;
+lista: %empty										//Obs: verificar o que fazer nesse caso
+	 | elemento {$$ = $1;}
+	 | lista ',' elemento{
+		if($1 != NULL){								//Caso o primeiro elemento não foi vazio cai no caso de lista
+			$$ = $1;
+			if($3 != NULL){							//Se há elemento na lista
+				asd_add_child($$, $3);				//Cria o filho
+			}
+		}
+		else {$$ = $3;}								//Se primeiro elemento for vazio cai no caso de elemento
+	 };
 
 elemento: declaracao_variavel_global
 		| definicao_funcao;
@@ -222,8 +275,8 @@ expressao_pos_fixado: expressao_primario
 
 // primários: identificadores, literais e parênteses
 expressao_primario: TK_ID
-  		 		   | literal
-  		 		   | '(' expressao ')';
+  		 		   | literal {}
+  		 		   | '(' expressao ')'{$$ = $2;};
 %%
 
 void yyerror (char const *mensagem)
