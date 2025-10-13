@@ -10,7 +10,7 @@ BISON=bison
 
 CFLAGS=-fsanitize=address -wall -werror
 
-DEPS = parser.tab.h asd.h valor_t.h
+DEPS = parser.tab.h asd.h valor_token.h
 OBJ = lex.yy.o parser.tab.o asd.o main.o
 
 ETAPA = etapa3

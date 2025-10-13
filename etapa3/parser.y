@@ -8,6 +8,11 @@ void yyerror (char const *mensagem);
 extern int get_line_number();
 %}
 
+%union {
+ asd_tree_t *no;
+ valor_t *valor_lexico;
+}
+
 %define parse.error verbose
 
 %token TK_TIPO        // "tipo"
