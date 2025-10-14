@@ -8,6 +8,7 @@
 //Espaço reservado para código C
 #include "parser.tab.h"
 #include "valor_token.h"
+#include "asd.c"
 
 valor_t* alocar_valor(token_type_t type);
 %}

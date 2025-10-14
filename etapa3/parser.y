@@ -46,6 +46,7 @@ extern asd_tree_t *arvore;
 %type<no> declaracao_variavel_global
 %type<no> tipo
 %type<no> definicao_funcao
+%type<no> corpo
 %type<no> cabecalho
 %type<no> lista_parametros
 %type<no> lista_parametros_opcionais
@@ -55,7 +56,6 @@ extern asd_tree_t *arvore;
 %type<no> sequencia_comando_simples
 %type<no> declaracao_variavel_local
 %type<no> inicializacao
-%type<no> literal
 %type<no> comando_atribuicao
 %type<no> chamada_funcao
 %type<no> argumentos
@@ -63,7 +63,6 @@ extern asd_tree_t *arvore;
 %type<no> comando_retorno
 %type<no> construcao_fluxo_controle
 %type<no> construcao_condicional
-%type<no> bloco_comando_opcional
 %type<no> construcao_iterativa
 %type<no> expressao
 %type<no> expressao_or
@@ -79,6 +78,9 @@ extern asd_tree_t *arvore;
 //Tipo valor_lexico
 
 %type<valor_lexico> literal
+%type<valor_lexico> TK_ID
+%type<valor_lexico> TK_LI_INTEIRO
+%type<valor_lexico> TK_LI_DECIMAL
 
 %%
 
@@ -94,7 +96,7 @@ extern asd_tree_t *arvore;
 programa: %empty {arvore = NULL;} 					//Caso do programa vazio
 		| lista ';'{arvore = $1;};					//Primeiro elemento
 
-lista: %empty										//Obs: verificar o que fazer nesse caso
+lista: %empty {$$ = NULL;}									//Obs: verificar o que fazer nesse caso
 	 | elemento {$$ = $1;}
 	 | lista ',' elemento{
 		if($1 != NULL){								//Caso o primeiro elemento não foi vazio cai no caso de lista
@@ -106,8 +108,8 @@ lista: %empty										//Obs: verificar o que fazer nesse caso
 		else {$$ = $3;}								//Se primeiro elemento for vazio cai no caso de elemento
 	 };
 
-elemento: declaracao_variavel_global
-		| definicao_funcao;
+elemento: declaracao_variavel_global {$$ = NULL;}
+		| definicao_funcao {$$ = $1;};
 
 // DECLARAÇÃO DE VARIÁVEL GLOBAL
 // Esta declaração é idêntica ao comando simples de declaração de variável que 
@@ -115,10 +117,10 @@ elemento: declaracao_variavel_global
 // enfim seguido do tipo. O tipo pode ser ou o token TK_DECIMAL ou o token TK_INTEIRO.
 // A única e importante diferença é que esse elemento não pode receber valores de inicialização.
 
-declaracao_variavel_global: TK_VAR TK_ID TK_ATRIB tipo;
+declaracao_variavel_global: TK_VAR TK_ID TK_ATRIB tipo; //NÃO SEI!!
 
-tipo: TK_DECIMAL
- 	| TK_INTEIRO;
+tipo: TK_DECIMAL {$$ = NULL;}      
+ 	| TK_INTEIRO {$$ = NULL;};
 
 // DEFINIÇÃO DE FUNÇÃO
 // Ela possui um cabeçalho e um corpo. O cabeçalho consiste no token TK_ID
@@ -128,40 +130,63 @@ tipo: TK_DECIMAL
 // Cada parâmetro consiste no token TK_ID seguido do token TK_ATRIB seguido ou do token TK_INTEIRO 
 // ou do token TK_DECIMAL. O corpo de uma função é um bloco de comandos
 
-definicao_funcao: cabecalho corpo;
+definicao_funcao: cabecalho corpo {
+	$$ = $1;						//Cabeçalho
+    if ($2 != NULL) {				//Se corpo não for nulo
+        asd_add_child($1, $2);    
+    }
+};
 
-cabecalho: TK_ID TK_SETA tipo lista_parametros_opcionais TK_ATRIB;
-corpo: bloco_comando;
+cabecalho: TK_ID TK_SETA tipo lista_parametros_opcionais TK_ATRIB {
+	$$ = asd_new($1); 
+    asd_add_child($$, $3);
+    if ($4 != NULL) {
+		asd_add_child($$, $4);
+	}
+    asd_free($1);
+};
+corpo: bloco_comando {$$ = $1};
 
-lista_parametros_opcionais: %empty
-						  | lista_parametros
-						  | TK_COM lista_parametros;
+lista_parametros_opcionais: %empty {$$ = NULL;}
+						  | lista_parametros {$$ = $1;}
+						  | TK_COM lista_parametros {$$ = $2;};
 
-lista_parametros: parametro
-				| lista_parametros ',' parametro;
+lista_parametros: parametro {$$ = NULL;}
+				| lista_parametros ',' parametro {$$ = NULL;};
 
-parametro: TK_ID TK_ATRIB tipo;
+parametro: TK_ID TK_ATRIB tipo{
+	$$ = NULL;				//Recebe null
+	asd_free($1);			//Dá free na memória
+};
 
 // COMANDOS SIMPLES:
 // Os comandos simples da linguagem podem ser: bloco de comandos, declaração de variável,
 // comando de atribuição, chamada de função, comando de retorno, e construções de fluxo de controle.
 
-comando_simples: bloco_comando
-			   | declaracao_variavel_local
-			   | comando_atribuicao
-			   | chamada_funcao
-			   | comando_retorno
-			   | construcao_fluxo_controle;
+comando_simples: bloco_comando {$$ = $1;}
+			   | declaracao_variavel_local {$$ = $1;}
+			   | comando_atribuicao {$$ = $1;}
+			   | chamada_funcao {$$ = $1;}
+			   | comando_retorno {$$ = $1;}
+			   | construcao_fluxo_controle {$$ = $1;};
 
 // BLOCO DE COMANDO
 // Definido entre colchetes, e consiste em uma sequência, possivelmente vazia, de comandos simples.
 // Um bloco de comandos é considerado como um comando único simples e pode ser utilizado em qualquer
 // construção que aceite um comando simples.
 
-bloco_comando: '[' sequencia_comando_simples ']';
+bloco_comando: '[' sequencia_comando_simples ']' {$$ = $2;}; //Apenas a sequencia de comando simples
 
-sequencia_comando_simples: %empty
-						 | sequencia_comando_simples comando_simples;
+sequencia_comando_simples: %empty {$$ = NULL;}
+						 | sequencia_comando_simples comando_simples {
+							if ($1 != NULL){					//Se sequencia não for nula
+								$$ = $1;						//Sequencia comando simples
+								if ($2 != NULL) {				//Se comando simples não for nulo
+									asd_add_child($$, $2);		//Adiciona filho
+								}
+							}
+							else {$$ = $2;}						//Se sequencia for nula vai para o caso do comando simples
+						 };
 
 // DECLARAÇÃO DE VARIÁVEL LOCAL
 // Consiste no token TK_VAR seguido do token TK_ID, que é por sua vez seguido do token TK_ATRIB e 
@@ -171,56 +196,91 @@ sequencia_comando_simples: %empty
 
 declaracao_variavel_local: TK_VAR TK_ID TK_ATRIB tipo inicializacao;
 
-inicializacao: %empty
-			 | TK_COM literal;
+inicializacao: %empty {$$ = NULL;}
+			 | TK_COM literal {
+				$$ = asd_new("com"); 		//Lexema
+                asd_add_child($$, $$);     //Isso pode dar problema    NÃO SEI!!
+                asd_add_child($$, $2);
+			 };
 
-literal: TK_LI_INTEIRO;
-literal: TK_LI_DECIMAL;
+literal: TK_LI_INTEIRO {$$ = $1;};
+literal: TK_LI_DECIMAL {$$ = $1;};
 
 // COMANDO DE ATRIBUIÇÃO
 // O comando de atribuição consiste em um token TK_ID, seguido do token TK_ATRIB e enfim seguido por
 // uma expressão.
 
-comando_atribuicao: TK_ID TK_ATRIB expressao;
+comando_atribuicao: TK_ID TK_ATRIB expressao{
+	$$ = asd_new("is");
+	asd_tree_t *aux = asd_new($1->lexema);
+	aux->valor = $1;
+	asd_add_child($$, aux);
+	asd_add_child($$, $3); 
+};
 
 // CHAMADA DE FUNÇÃO
 // Uma chamada de função consiste no token TK_ID, seguida de argumentos
 // entre parênteses, sendo que cada argumento é separado do outro por vírgula. Um argumento é
 // uma expressão. Uma chamada de função pode existir sem argumentos.
 
-chamada_funcao: TK_ID '(' argumentos ')';
+chamada_funcao: TK_ID '(' argumentos ')'{
+	char* node_label = (char*) calloc(strlen($1->lexema)+6, sizeof(char)); //Para o lexema da chamada de função
+	if (node_label == NULL){												//Se não aloca da exit
+  		exit(1);
+ 	}
+	strncpy(node_label, "call ", 5);										
+	strcat(node_label, $1->lexema);
+	$$ = asd_new(node_label);											//Nodo com chamada
+	free(node_label);													//free
+	$$->valor = $1;
+};
 
-argumentos: %empty
-		  | argumentos ',' argumento
-		  | argumento;
+argumentos: %empty {$$ = NULL;}
+		  | argumentos ',' argumento{
+			$$ = $1;
+			asd_add_child($$, $3);
+		  } 
+		  | argumento {$$ = $1;};
 
-argumento: expressao;
+argumento: expressao {$$ = $1;};
 
 // COMANDO DE RETORNO
 // Trata-se do token TK_RETORNA seguido de uma expressão, seguido do token TK_ATRIB
 // e terminado ou pelo token TK_DECIMAL ou pelo token TK_INTEIRO.
 
-comando_retorno: TK_RETORNA expressao TK_ATRIB tipo;
+comando_retorno: TK_RETORNA expressao TK_ATRIB tipo {$$ = asd_new("return"); asd_add_child($$, $2);};
 
 // CONSTRUÇÃO DE CONTROLE DE FLUXO
 // A linguagem possui uma construção condicional e uma construção iterativa para controle estruturado de fluxo.
 
-construcao_fluxo_controle: construcao_iterativa
-						 | construcao_condicional;
+construcao_fluxo_controle: construcao_iterativa {$$ = $1;}
+						 | construcao_condicional {$$ = $1;};
 
 // A condicional consiste no token TK_SE seguido de uma expressão entre parênteses e então por um 
 // bloco de comandos obrigatório. Após este bloco, podemos opcionalmente ter o token TK_SENAO que,
 // quando aparece, é seguido obrigatoriamente por um bloco de comandos.
 
-construcao_condicional: TK_SE '(' expressao ')' bloco_comando bloco_comando_opcional;
-
-bloco_comando_opcional: %empty
-					  | TK_SENAO bloco_comando;
+construcao_condicional: TK_SE '(' expressao ')' bloco_comando TK_SENAO bloco_comando{
+	$$ = asd_new("if");					//Lexema que o professor pediu
+	asd_add_child($$, $3); 				//Expressão
+	
+	if ($5 != NULL)
+		asd_add_child($$, $5); 			//Se bloco de comando não está nulo
+		
+	if ($7 != NULL)
+		asd_add_child($$, $7);			//Se bloco de comando condicional não é nulo
+};
 
 // Temos apenas uma construção de repetição que é o token TK_ENQUANTO seguido de uma expressão entre
 // parênteses e de um bloco de comandos.
 
-construcao_iterativa: TK_ENQUANTO '(' expressao ')' bloco_comando;
+construcao_iterativa: TK_ENQUANTO '(' expressao ')' bloco_comando{
+	$$ = asd_new("while");					//Lexema que o professor pediu
+	asd_add_child($$, $3); 					//Caso da expressão
+	
+	if ($5 != NULL)							//Se houver bloco de comando
+		asd_add_child($$, $5); 				//Bloco de comando
+};
 
 // EXPRESSÃO
 // Expressões envolvem operandos e operadores, sendo este opcional. Os operandos podem ser
@@ -230,52 +290,52 @@ construcao_iterativa: TK_ENQUANTO '(' expressao ')' bloco_comando;
 // (portanto implemente recursão à esquerda nas regras gramaticais).
 
 // Raiz
-expressao: expressao_or;
+expressao: expressao_or {$$ = $1;};
 
 // Nível 7: binário infixado or (|) 
-expressao_or: expressao_or '|' expressao_and
-  			| expressao_and;
+expressao_or: expressao_or '|' expressao_and {$$ = asd_new("|"); asd_add_child($$, $1); asd_add_child($$, $3);}
+  			| expressao_and {$$ = $1;};
 
 // Nível 6: binário infixado and (&)
-expressao_and: expressao_and '&' expressao_igual_desigual
-   			 | expressao_igual_desigual;
+expressao_and: expressao_and '&' expressao_igual_desigual {$$ = asd_new("&"); asd_add_child($$, $1); asd_add_child($$, $3);}
+   			 | expressao_igual_desigual {$$ = $1;};
 
 // Nível 5: binário infixados igualdade e desiqualdade (==, !=)
-expressao_igual_desigual: expressao_igual_desigual TK_OC_EQ expressao_relacional
-			  			| expressao_igual_desigual TK_OC_NE expressao_relacional
-			  			| expressao_relacional;
+expressao_igual_desigual: expressao_igual_desigual TK_OC_EQ expressao_relacional {$$ = asd_new("=="); asd_add_child($$, $1); asd_add_child($$, $3);}
+			  			| expressao_igual_desigual TK_OC_NE expressao_relacional {$$ = asd_new("!="); asd_add_child($$, $1); asd_add_child($$, $3);}
+			  			| expressao_relacional {$$ = $1;};
 
 // Nível 4: binário infixados relacionais maior, menor, menor igual e maior igual (<, >, <=, >=)
-expressao_relacional: expressao_relacional '<' expressao_soma_subtracao
-  		  			| expressao_relacional '>' expressao_soma_subtracao
-  		  			| expressao_relacional TK_OC_LE  expressao_soma_subtracao
-		  			| expressao_relacional TK_OC_GE  expressao_soma_subtracao
-  		  			| expressao_soma_subtracao;
+expressao_relacional: expressao_relacional '<' expressao_soma_subtracao {$$ = asd_new("<"); asd_add_child($$, $1); asd_add_child($$, $3);}
+  		  			| expressao_relacional '>' expressao_soma_subtracao {$$ = asd_new(">"); asd_add_child($$, $1); asd_add_child($$, $3);}
+  		  			| expressao_relacional TK_OC_LE  expressao_soma_subtracao {$$ = asd_new("<="); asd_add_child($$, $1); asd_add_child($$, $3);}
+		  			| expressao_relacional TK_OC_GE  expressao_soma_subtracao {$$ = asd_new(">="); asd_add_child($$, $1); asd_add_child($$, $3);}
+  		  			| expressao_soma_subtracao {$$ = $1;};
 
 // Nível 3: binário infixados soma e subtração (associativo à esquerda)
-expressao_soma_subtracao: expressao_soma_subtracao '+' expressao_mult_div_mod
-  			  			| expressao_soma_subtracao '-' expressao_mult_div_mod
-  			  			| expressao_mult_div_mod;
+expressao_soma_subtracao: expressao_soma_subtracao '+' expressao_mult_div_mod {$$ = asd_new("+"); asd_add_child($$, $1); asd_add_child($$, $3);}
+  			  			| expressao_soma_subtracao '-' expressao_mult_div_mod {$$ = asd_new("-"); asd_add_child($$, $1); asd_add_child($$, $3);}
+  			  			| expressao_mult_div_mod {$$ = $1;};
 
 // Nível 2: binário infixados multiplicação, divisão e mod (associativo à esquerda)
-expressao_mult_div_mod: expressao_mult_div_mod '*' expressao_unitario
-  					  | expressao_mult_div_mod '/' expressao_unitario
-  					  | expressao_mult_div_mod '%' expressao_unitario
-  					  | expressao_unitario;
+expressao_mult_div_mod: expressao_mult_div_mod '*' expressao_unitario {$$ = asd_new("*"); asd_add_child($$, $1); asd_add_child($$, $3);}
+  					  | expressao_mult_div_mod '/' expressao_unitario {$$ = asd_new("/"); asd_add_child($$, $1); asd_add_child($$, $3);}
+  					  | expressao_mult_div_mod '%' expressao_unitario {$$ = asd_new("%"); asd_add_child($$, $1); asd_add_child($$, $3);}
+  					  | expressao_unitario {$$ = $1};
 
 // Nível 1: unários pré-fixados soma, subtração e negação (+, -, !) (associação natural à direita - liguangem C)
-expressao_unitario: '+' expressao_unitario
-  				  | '-' expressao_unitario
-  				  | '!' expressao_unitario
-  				  | expressao_pos_fixado;
+expressao_unitario: '+' expressao_unitario {$$ = asd_new("+"); asd_add_child($$, $2);}
+  				  | '-' expressao_unitario {$$ = asd_new("-"); asd_add_child($$, $2);}
+  				  | '!' expressao_unitario {$$ = asd_new("!"); asd_add_child($$, $2);}
+  				  | expressao_pos_fixado {$$ = $1;};
 
 // Nível 0: pós-fixados primários e chamada de função
-expressao_pos_fixado: expressao_primario
-  		             | chamada_funcao;
+expressao_pos_fixado: expressao_primario {$$ = $1;}
+  		             | chamada_funcao {$$ = $1;};
 
 // primários: identificadores, literais e parênteses
-expressao_primario: TK_ID
-  		 		   | literal {}
+expressao_primario: TK_ID {$$ = asd_new($1->lexema); $$->valor = $1;}
+  		 		   | literal {$$ = asd_new($1->lexema); $$->valor = $1;}
   		 		   | '(' expressao ')'{$$ = $2;};
 %%
 

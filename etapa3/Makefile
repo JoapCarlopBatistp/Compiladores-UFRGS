@@ -8,7 +8,7 @@ CC=gcc
 FLEX=flex
 BISON=bison
 
-CFLAGS=-fsanitize=address -wall -werror
+CFLAGS=-fsanitize=address -Wall -Werror
 
 DEPS = parser.tab.h asd.h valor_token.h
 OBJ = lex.yy.o parser.tab.o asd.o main.o
