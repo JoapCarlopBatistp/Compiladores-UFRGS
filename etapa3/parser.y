@@ -109,7 +109,7 @@ programa: %empty {arvore = NULL;} 					//Caso do programa vazio
 
 lista: %empty {$$ = NULL;}									//Obs: verificar o que fazer nesse caso
 	 | elemento {$$ = $1;}
-	 | lista ',' elemento{
+	 | elemento ',' lista {
 		if($1 != NULL){								//Caso o primeiro elemento não foi vazio cai no caso de lista
 			$$ = $1;
 			if($3 != NULL){							//Se há elemento na lista
@@ -177,7 +177,7 @@ lista_parametros_opcionais: %empty {$$ = NULL;}
 						  | TK_COM lista_parametros {$$ = $2;};
 
 lista_parametros: parametro {$$ = $1;}
-				| lista_parametros ',' parametro {
+				| parametro ',' lista_parametros {
 					 if ($1 != NULL) {
         				asd_add_child($1, $3); 
         				$$ = $1; // Propaga a cabeça da lista
@@ -211,7 +211,7 @@ comando_simples: bloco_comando {$$ = $1;}
 bloco_comando: '[' sequencia_comando_simples ']' {$$ = $2;}; //Apenas a sequencia de comando simples
 
 sequencia_comando_simples: %empty {$$ = NULL;}
-						 | sequencia_comando_simples comando_simples {
+						 | comando_simples sequencia_comando_simples {
 							if ($1 != NULL){					//Se sequencia não for nula
 								$$ = $1;						//Sequencia comando simples
 								if ($2 != NULL) {				//Se comando simples não for nulo
@@ -289,11 +289,12 @@ chamada_funcao: TK_ID '(' argumentos ')'{
 };
 
 argumentos: %empty {$$ = NULL;}
-		  | argumentos ',' argumento{
+		  | argumento {$$ = $1;};
+		  | argumento ',' argumentos{
 			$$ = $1;
 			asd_add_child($$, $3);
 		  } 
-		  | argumento {$$ = $1;};
+		  
 
 argumento: expressao {$$ = $1;};
 
