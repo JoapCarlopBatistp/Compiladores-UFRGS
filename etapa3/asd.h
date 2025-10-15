@@ -5,8 +5,10 @@
 #ifndef _ASD_H_
 #define _ASD_H_
 
+#include "valor_token.h"
 typedef struct asd_tree {
   char *label;
+  valor_t *valor; //Adicionado
   int number_of_children;
   struct asd_tree **children;
 } asd_tree_t;
@@ -35,4 +37,6 @@ void asd_print(asd_tree_t *tree);
  * Função asd_print_graphviz, idem, em formato DOT
  */
 void asd_print_graphviz (asd_tree_t *tree);
+
+void asd_libera_valor(valor_t *val);
 #endif //_ASD_H_

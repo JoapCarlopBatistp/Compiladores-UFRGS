@@ -93,3 +93,10 @@ void asd_print_graphviz(asd_tree_t *tree)
     printf("Erro: %s recebeu parâmetro tree = %p.\n", __FUNCTION__, tree);
   }
 }
+
+void asd_libera_valor(valor_t *val) {               //Função extra criada para liberar valores do valor_token.h
+    if (val != NULL) {
+        if (val->lexema != NULL) free(val->lexema);
+        free(val);
+    }
+}
