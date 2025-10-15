@@ -117,7 +117,8 @@ lista: %empty {$$ = NULL;}									//Obs: verificar o que fazer nesse caso
 			}
 		}
 		else {$$ = $3;}								//Se primeiro elemento for vazio cai no caso de elemento
-	 };
+	};
+
 
 elemento: declaracao_variavel_global {$$ = $1;}
 		| definicao_funcao {$$ = $1;};
@@ -167,8 +168,7 @@ cabecalho: TK_ID TK_SETA tipo lista_parametros_opcionais TK_ATRIB {
     if ($4 != NULL) {
 		asd_add_child($$, $4);
 	}
-	free($1->lexema);
-    free($1);        
+	asd_libera_valor($1);
 };
 corpo: bloco_comando {$$ = $1;};
 
@@ -189,7 +189,7 @@ lista_parametros: parametro {$$ = $1;}
 parametro: TK_ID TK_ATRIB tipo{
 	$$ = asd_new($1->lexema);
 	asd_add_child($$, $3); //Adiciona o tipo como filho do nó parametro
-	asd_libera_valor($1);		
+	asd_libera_valor($1);	
 };
 
 // COMANDOS SIMPLES:

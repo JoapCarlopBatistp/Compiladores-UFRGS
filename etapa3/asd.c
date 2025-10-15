@@ -28,6 +28,10 @@ void asd_free(asd_tree_t *tree)
     }
     free(tree->children);
     free(tree->label);
+    if (tree->valor != NULL) {
+        free(tree->valor->lexema);      // << LIBERA A STRING INTERNA
+    }
+    free(tree->valor); //Teve que ser adicionado pela mudança do header
     free(tree);
   }else{
     printf("Erro: %s recebeu parâmetro tree = %p.\n", __FUNCTION__, tree);
