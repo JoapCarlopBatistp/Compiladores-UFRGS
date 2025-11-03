@@ -1,0 +1,34 @@
+//CORRECT
+var tempx := inteiro,
+
+foo -> decimal com vari := inteiro, bvari := decimal := [
+  var temp0 := inteiro
+  var temp := decimal com 0.0
+  temp := temp + vari * bvari
+  se (temp == vari * bvari) [
+     temp := temp + 1
+  ] senao [
+     temp := temp * -1
+  ]
+  retorna temp := inteiro
+],
+
+main -> inteiro := [
+  var vari := decimal com 0.0
+  var mine := inteiro com 5
+  vari := vari + 5.2
+  enquanto (vari > 0.0) [
+    mine := vari * (mine - vari) * 2.3
+    vari := vari - 0.1
+    vari := foo()
+    vari := +3 * vari --4
+    vari := !vari - +3
+    vari := vari + mine - sub * mult / div % 5
+    vari := vari <= mine
+    vari := mine > 4 * 9 / mine + sub
+    vari := vari + i >= mine
+    vari := vari(arg, i*j+4, j) * 3
+    vari := vari & vari | i
+  ]
+  retorna vari := decimal
+];
