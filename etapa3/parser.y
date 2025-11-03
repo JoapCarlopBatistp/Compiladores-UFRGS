@@ -64,7 +64,6 @@ extern asd_tree_t *arvore;
 %type<no> bloco_comando
 %type<no> sequencia_comando_simples
 %type<no> declaracao_variavel_local
-%type<no> inicializacao
 %type<no> comando_atribuicao
 %type<no> chamada_funcao
 %type<no> argumentos
@@ -120,7 +119,7 @@ lista: %empty {$$ = NULL;}									//Obs: verificar o que fazer nesse caso
 	};
 
 
-elemento: declaracao_variavel_global {$$ = $1;}
+elemento: declaracao_variavel_global {if($1 != NULL) asd_free($1); $$ = NULL;}
 		| definicao_funcao {$$ = $1;};
 
 // DECLARAÇÃO DE VARIÁVEL GLOBAL
@@ -130,22 +129,14 @@ elemento: declaracao_variavel_global {$$ = $1;}
 // A única e importante diferença é que esse elemento não pode receber valores de inicialização.
 
 declaracao_variavel_global: TK_VAR TK_ID TK_ATRIB tipo{
-	// var = rótulo do nó
-	if ($2 == NULL) {
-        $$ = NULL; 
-    } else {
-        $$ = asd_new("var"); 
-	}
-	asd_tree_t* aux = asd_new($2->lexema);
-    
-    asd_add_child($$, aux); 
-	asd_add_child($$, $4);
-	asd_libera_valor($2);
-    // Se a regra 'tipo' não aloca memória para ser liberada, não há free necessário para $4.
+	$$ = asd_new($2->lexema);
+	free($2->lexema);
+    if ($4 != NULL) asd_free($4); 
+	free($2);
 }; 
 
-tipo: TK_DECIMAL {$$ = asd_new("decimal"); asd_libera_valor($1);}      
- 	| TK_INTEIRO {$$ = asd_new("inteiro"); asd_libera_valor($1);};
+tipo: TK_DECIMAL {$$ = NULL;}       
+ 	| TK_INTEIRO {$$ = NULL;};		
 
 // DEFINIÇÃO DE FUNÇÃO
 // Ela possui um cabeçalho e um corpo. O cabeçalho consiste no token TK_ID
@@ -164,11 +155,10 @@ definicao_funcao: cabecalho corpo {
 
 cabecalho: TK_ID TK_SETA tipo lista_parametros_opcionais TK_ATRIB {
 	$$ = asd_new($1->lexema); 
-    asd_add_child($$, $3);
-    if ($4 != NULL) {
-		asd_add_child($$, $4);
-	}
-	asd_libera_valor($1);
+    if ($3 != NULL) asd_free($3);
+    if ($4 != NULL) asd_free($4);
+	free($1->lexema);
+    free($1);
 };
 corpo: bloco_comando {$$ = $1;};
 
@@ -187,9 +177,10 @@ lista_parametros: parametro {$$ = $1;}
 				};
 
 parametro: TK_ID TK_ATRIB tipo{
-	$$ = asd_new($1->lexema);
-	asd_add_child($$, $3); //Adiciona o tipo como filho do nó parametro
-	asd_libera_valor($1);	
+	free($1->lexema);
+	free($1);
+	if ($3 != NULL) asd_free($3);
+    $$ = NULL;
 };
 
 // COMANDOS SIMPLES:
@@ -227,36 +218,15 @@ sequencia_comando_simples: %empty {$$ = NULL;}
 // pode ser opcionalmente inicializada caso sua declaração seja seguida do token TK_COM e de um literal.
 // Um literal pode ser ou o token TK_LI_INTEIRO ou o token TK_LI_DECIMAL.
 
-declaracao_variavel_local: TK_VAR TK_ID TK_ATRIB tipo inicializacao{
+declaracao_variavel_local: declaracao_variavel_global{asd_free($1); $$ = NULL;}
+			| declaracao_variavel_global TK_COM literal{
+				$$ = asd_new("com"); 
+            	asd_add_child($$, $1);
+            	asd_add_child($$, $3);
+			};
 
-    asd_tree_t* id_node = asd_new($2->lexema);
-    
-	//Nó principal + nomenclatura
-    if ($5 != NULL) {
-        // Caso: COM inicialização -> Nome do nó é o lexema de TK_COM
-        $$ = asd_new("com"); 
-    } else {
-        // Caso: SEM inicialização -> Nome do nó é o lexema de TK_VAR
-        $$ = asd_new("var"); 
-    }
-    
-	//Filho 1 é o ID
-    asd_add_child($$, id_node);
-    
-    //Filho 2
-    if ($5 != NULL) {
-        asd_add_child($$, $5);
-    }
-	asd_libera_valor($2);
-};
-
-inicializacao: %empty {$$ = NULL;}
-			 | TK_COM literal {
-				$$ = $2;
-			 };
-
-literal: TK_LI_INTEIRO {$$ = asd_new($1->lexema); asd_libera_valor($1);}; //Lexema do literal no rótulo + associação do valor lexico
-literal: TK_LI_DECIMAL {$$ = asd_new($1->lexema); asd_libera_valor($1);};
+literal: TK_LI_INTEIRO {$$ = asd_new($1->lexema); free($1->lexema); free($1);}; //Lexema do literal no rótulo + associação do valor lexico
+literal: TK_LI_DECIMAL {$$ = asd_new($1->lexema); free($1->lexema); free($1);};
 
 // COMANDO DE ATRIBUIÇÃO
 // O comando de atribuição consiste em um token TK_ID, seguido do token TK_ATRIB e enfim seguido por
@@ -265,9 +235,11 @@ literal: TK_LI_DECIMAL {$$ = asd_new($1->lexema); asd_libera_valor($1);};
 comando_atribuicao: TK_ID TK_ATRIB expressao{
 	$$ = asd_new(":=");
 	asd_tree_t *aux = asd_new($1->lexema);
+	free($1->lexema);
 	asd_add_child($$, aux); //Filho 1
 	asd_add_child($$, $3);  //Filho 2
-	asd_libera_valor($1);
+	//asd_free(aux);
+	free($1);
 };
 
 // CHAMADA DE FUNÇÃO
@@ -280,12 +252,13 @@ chamada_funcao: TK_ID '(' argumentos ')'{
 	if (node_label == NULL) exit(1);
 	strncpy(node_label, "call ", 6);										
 	strcat(node_label, $1->lexema);
+	free($1->lexema);
 	$$ = asd_new(node_label);											//Nodo com chamada
 	free(node_label);													//free
 	if ($3 != NULL) {													//Lista de argumentos se torna filho, se houver
         asd_add_child($$, $3);
     }
-	asd_libera_valor($1);
+	free($1);
 };
 
 argumentos: %empty {$$ = NULL;}
@@ -302,7 +275,7 @@ argumento: expressao {$$ = $1;};
 // Trata-se do token TK_RETORNA seguido de uma expressão, seguido do token TK_ATRIB
 // e terminado ou pelo token TK_DECIMAL ou pelo token TK_INTEIRO.
 
-comando_retorno: TK_RETORNA expressao TK_ATRIB tipo {$$ = asd_new("retorna"); asd_add_child($$, $2); asd_free($4);};
+comando_retorno: TK_RETORNA expressao TK_ATRIB tipo {$$ = asd_new("retorna"); asd_add_child($$, $2); if($4 != NULL) asd_free($4);};
 
 // CONSTRUÇÃO DE CONTROLE DE FLUXO
 // A linguagem possui uma construção condicional e uma construção iterativa para controle estruturado de fluxo.
@@ -349,34 +322,34 @@ construcao_iterativa: TK_ENQUANTO '(' expressao ')' bloco_comando{
 expressao: expressao_or {$$ = $1;};
 
 // Nível 7: binário infixado or (|) 
-expressao_or: expressao_or '|' expressao_and {$$ = asd_new("|"); asd_add_child($$, $1); asd_add_child($$, $3);}
+expressao_or: expressao_and '|' expressao_or {$$ = asd_new("|"); asd_add_child($$, $1); asd_add_child($$, $3);}
   			| expressao_and {$$ = $1;};
 
 // Nível 6: binário infixado and (&)
-expressao_and: expressao_and '&' expressao_igual_desigual {$$ = asd_new("&"); asd_add_child($$, $1); asd_add_child($$, $3);}
+expressao_and: expressao_igual_desigual '&' expressao_and {$$ = asd_new("&"); asd_add_child($$, $1); asd_add_child($$, $3);}
    			 | expressao_igual_desigual {$$ = $1;};
 
 // Nível 5: binário infixados igualdade e desiqualdade (==, !=)
-expressao_igual_desigual: expressao_igual_desigual TK_OC_EQ expressao_relacional {$$ = asd_new("=="); asd_add_child($$, $1); asd_add_child($$, $3);}
-			  			| expressao_igual_desigual TK_OC_NE expressao_relacional {$$ = asd_new("!="); asd_add_child($$, $1); asd_add_child($$, $3);}
+expressao_igual_desigual: expressao_relacional TK_OC_EQ expressao_igual_desigual {$$ = asd_new("=="); asd_add_child($$, $1); asd_add_child($$, $3);}
+			  			| expressao_relacional TK_OC_NE expressao_igual_desigual {$$ = asd_new("!="); asd_add_child($$, $1); asd_add_child($$, $3);}
 			  			| expressao_relacional {$$ = $1;};
 
 // Nível 4: binário infixados relacionais maior, menor, menor igual e maior igual (<, >, <=, >=)
-expressao_relacional: expressao_relacional '<' expressao_soma_subtracao {$$ = asd_new("<"); asd_add_child($$, $1); asd_add_child($$, $3);}
-  		  			| expressao_relacional '>' expressao_soma_subtracao {$$ = asd_new(">"); asd_add_child($$, $1); asd_add_child($$, $3);}
-  		  			| expressao_relacional TK_OC_LE  expressao_soma_subtracao {$$ = asd_new("<="); asd_add_child($$, $1); asd_add_child($$, $3);}
-		  			| expressao_relacional TK_OC_GE  expressao_soma_subtracao {$$ = asd_new(">="); asd_add_child($$, $1); asd_add_child($$, $3);}
+expressao_relacional: expressao_soma_subtracao '<' expressao_relacional {$$ = asd_new("<"); asd_add_child($$, $1); asd_add_child($$, $3);}
+  		  			| expressao_soma_subtracao '>' expressao_relacional {$$ = asd_new(">"); asd_add_child($$, $1); asd_add_child($$, $3);}
+  		  			| expressao_soma_subtracao TK_OC_LE  expressao_relacional {$$ = asd_new("<="); asd_add_child($$, $1); asd_add_child($$, $3);}
+		  			| expressao_soma_subtracao TK_OC_GE  expressao_relacional {$$ = asd_new(">="); asd_add_child($$, $1); asd_add_child($$, $3);}
   		  			| expressao_soma_subtracao {$$ = $1;};
 
 // Nível 3: binário infixados soma e subtração (associativo à esquerda)
-expressao_soma_subtracao: expressao_soma_subtracao '+' expressao_mult_div_mod {$$ = asd_new("+"); asd_add_child($$, $1); asd_add_child($$, $3);}
-  			  			| expressao_soma_subtracao '-' expressao_mult_div_mod {$$ = asd_new("-"); asd_add_child($$, $1); asd_add_child($$, $3);}
+expressao_soma_subtracao: expressao_mult_div_mod '+' expressao_soma_subtracao {$$ = asd_new("+"); asd_add_child($$, $1); asd_add_child($$, $3);}
+  			  			| expressao_mult_div_mod '-' expressao_soma_subtracao {$$ = asd_new("-"); asd_add_child($$, $1); asd_add_child($$, $3);}
   			  			| expressao_mult_div_mod {$$ = $1;};
 
 // Nível 2: binário infixados multiplicação, divisão e mod (associativo à esquerda)
-expressao_mult_div_mod: expressao_mult_div_mod '*' expressao_unitario {$$ = asd_new("*"); asd_add_child($$, $1); asd_add_child($$, $3);}
-  					  | expressao_mult_div_mod '/' expressao_unitario {$$ = asd_new("/"); asd_add_child($$, $1); asd_add_child($$, $3);}
-  					  | expressao_mult_div_mod '%' expressao_unitario {$$ = asd_new("%"); asd_add_child($$, $1); asd_add_child($$, $3);}
+expressao_mult_div_mod: expressao_unitario '*' expressao_mult_div_mod {$$ = asd_new("*"); asd_add_child($$, $1); asd_add_child($$, $3);}
+  					  | expressao_unitario '/' expressao_mult_div_mod {$$ = asd_new("/"); asd_add_child($$, $1); asd_add_child($$, $3);}
+  					  | expressao_unitario '%' expressao_mult_div_mod {$$ = asd_new("%"); asd_add_child($$, $1); asd_add_child($$, $3);}
   					  | expressao_unitario {$$ = $1;};
 
 // Nível 1: unários pré-fixados soma, subtração e negação (+, -, !) (associação natural à direita - liguangem C)
@@ -390,7 +363,7 @@ expressao_pos_fixado: expressao_primario {$$ = $1;}
   		             | chamada_funcao {$$ = $1;};
 
 // primários: identificadores, literais e parênteses
-expressao_primario: TK_ID {$$ = asd_new($1->lexema); asd_libera_valor($1);}
+expressao_primario: TK_ID {$$ = asd_new($1->lexema); free($1->lexema); free($1);}
   		 		   | literal {$$ = $1;}
   		 		   | '(' expressao ')'{$$ = $2;};
 %%
