@@ -8,12 +8,12 @@ CC=gcc
 FLEX=flex
 BISON=bison
 
-CFLAGS= -Wall -Werror -g   #Lembrar de colocar o fsanitize de volta depois (-fsanitize=address)
+CFLAGS= -Wall -Werror -g #-fsanitize=address
 
-DEPS = parser.tab.h asd.h valor_token.h
-OBJ = lex.yy.o parser.tab.o asd.o main.o
+DEPS = parser.tab.h asd.h valor_token.h tabela_simbolos.h errors.h
+OBJ = lex.yy.o parser.tab.o asd.o main.o tabela_simbolos.o
 
-ETAPA = etapa3
+ETAPA = etapa4
 
 #-----------------------------------------------------------------
 

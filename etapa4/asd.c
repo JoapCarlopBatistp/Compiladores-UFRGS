@@ -6,6 +6,9 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include "asd.h"
+#include "errors.h"
+
+extern int get_line_number();
 
 asd_tree_t *asd_new(const char *label)
 {
@@ -15,6 +18,7 @@ asd_tree_t *asd_new(const char *label)
     ret->label = strdup(label);
     ret->number_of_children = 0;
     ret->children = NULL;
+    ret->tipo = TIPO_NAO_DEFINIDO;  // Inicializa tipo
   }
   return ret;
 }
@@ -103,4 +107,25 @@ void asd_libera_valor(valor_t *val) {               //Função extra criada para
         if (val->lexema != NULL) free(val->lexema);
         free(val);
     }
+}
+
+// Função para inferir tipo de operação binária
+tipo_dado_t inferir_tipo_binario(tipo_dado_t tipo1, tipo_dado_t tipo2, int linha) {
+    // int + int = int
+    if (tipo1 == TIPO_INT && tipo2 == TIPO_INT) {
+        return TIPO_INT;
+    }
+    // float + float = float
+    if (tipo1 == TIPO_FLOAT && tipo2 == TIPO_FLOAT) {
+        return TIPO_FLOAT;
+    }
+    // int + float ou float + int = ERRO
+    if ((tipo1 == TIPO_INT && tipo2 == TIPO_FLOAT) || 
+        (tipo1 == TIPO_FLOAT && tipo2 == TIPO_INT)) {
+        fprintf(stderr, "ERRO SEMÂNTICO na linha %d: tipos incompatíveis (%s e %s) em operação.\n",
+                linha, tipo_para_string(tipo1), tipo_para_string(tipo2));
+        exit(ERR_WRONG_TYPE);
+    }
+    
+    return TIPO_NAO_DEFINIDO;
 }
