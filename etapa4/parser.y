@@ -148,7 +148,7 @@ declaracao_variavel_global
     {
         valor_t *token_identificador = $2;
         tipo_dado_t tipo_declarado = $4;
-        verificar_semantica_variavel_global(pilha_tabelas, token_identificador, get_line_number(), 0);
+        verificar_semantica_variavel_global(pilha_tabelas, token_identificador, get_line_number());
         declarar_variavel_global(pilha_tabelas, token_identificador, tipo_declarado, get_line_number());
         
         $$ = NULL;
@@ -237,7 +237,7 @@ parametro
 
         verificar_semantica_parametro(funcao_contexto, get_line_number());
         adicionar_parametro_funcao(funcao_contexto, tipo_parametro);
-        verificar_semantica_variavel_local(pilha_tabelas, token_parametro, get_line_number(), 1);
+        verificar_semantica_variavel_local(pilha_tabelas, token_parametro, get_line_number());
         declarar_variavel_local(pilha_tabelas, token_parametro, tipo_parametro, get_line_number());
         
         free(token_parametro->lexema);
@@ -296,7 +296,7 @@ declaracao_variavel_local
     {
         valor_t *token_identificador = $2;
         tipo_dado_t tipo_declarado = $4;
-        verificar_semantica_variavel_local(pilha_tabelas, token_identificador, get_line_number(), 1);
+        verificar_semantica_variavel_local(pilha_tabelas, token_identificador, get_line_number());
         declarar_variavel_local(pilha_tabelas, token_identificador, tipo_declarado, get_line_number());
         $$ = NULL;
         free(token_identificador->lexema);
@@ -308,7 +308,7 @@ declaracao_variavel_local
         tipo_dado_t tipo_declarado = $4;
         asd_tree_t *no_literal = $6;
 
-        verificar_semantica_variavel_local(pilha_tabelas, token_identificador, get_line_number(), 1);
+        verificar_semantica_variavel_local(pilha_tabelas, token_identificador, get_line_number());
         verificar_semantica_inicializacao_variavel_local(no_literal, token_identificador, tipo_declarado, get_line_number());
         declarar_variavel_local(pilha_tabelas, token_identificador, tipo_declarado, get_line_number());
         
