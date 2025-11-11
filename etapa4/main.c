@@ -19,18 +19,14 @@ int main (int argc, char **argv)
 
   int ret = yyparse();
 
-   if (arvore) {
-    asd_print_graphviz(arvore);
-    // Libera AST
-    asd_free(arvore);
-    arvore = NULL;
-  }
+  asd_print_graphviz(arvore);
+  // Libera AST
+  asd_free(arvore);
   
-  // Desempilha e libera TODOS os escopos restantes (se houver)
-  while (pilha_tabelas != NULL) {
+  // Desempilha e libera todos os escopos restantes (se houver)
+  while(pilha_tabelas != NULL)
     desempilhar_tabela(&pilha_tabelas);
-  }
-
+   
   // Finaliza o lexer (Flex)
   yylex_destroy();
 

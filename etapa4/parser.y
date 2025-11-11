@@ -17,11 +17,8 @@ void yyerror (char const *mensagem);
 extern int get_line_number();
 
 extern asd_tree_t *arvore;
-
-// Pilha de tabelas de símbolos (escopo)
 extern tabela_simbolos_t *pilha_tabelas;
 
-// ======= Funções auxiliares declaradas =======
 %}
 
 %code requires {
@@ -185,13 +182,7 @@ definicao_funcao
 cabecalho
   : TK_ID TK_SETA tipo
     {
-        // Declara a função no escopo corrente e abre escopo para parâmetros
-      if (buscar_simbolo_escopo_atual(pilha_tabelas, $1->lexema) != NULL) {
-          fprintf(stderr,
-                  "ERRO SEMÂNTICO [%s %d] linha %d: função '%s' já foi declarada.\n",
-                  semantica_nome_erro(ERR_DECLARED), ERR_DECLARED, get_line_number(), $1->lexema);
-          exit(ERR_DECLARED);
-      }
+      verificar_semantica_declaracao_funcao(pilha_tabelas, $1, get_line_number());
       entrada_tabela_t *funcao = declarar_funcao(pilha_tabelas, $1, $3, get_line_number());
       empilhar_tabela(&pilha_tabelas);
       pilha_tabelas->funcao = funcao;
