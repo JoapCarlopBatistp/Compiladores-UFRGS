@@ -8,8 +8,6 @@
 #include "asd.h"
 #include "errors.h"
 
-extern int get_line_number();
-
 asd_tree_t *asd_new(const char *label)
 {
   asd_tree_t *ret = NULL;
@@ -109,23 +107,25 @@ void asd_libera_valor(valor_t *val) {               //Função extra criada para
     }
 }
 
-// Função para inferir tipo de operação binária
-tipo_dado_t inferir_tipo_binario(tipo_dado_t tipo1, tipo_dado_t tipo2, int linha) {
-    // int + int = int
-    if (tipo1 == TIPO_INT && tipo2 == TIPO_INT) {
-        return TIPO_INT;
+
+int asd_contar_argumentos(asd_tree_t *args) {
+    int n = 0;
+    asd_tree_t *p = args;
+    while (p != NULL) {
+        n++;
+        if (p->number_of_children >= 2) {
+            p = p->children[1];
+        } else {
+            p = NULL;
+        }
     }
-    // float + float = float
-    if (tipo1 == TIPO_FLOAT && tipo2 == TIPO_FLOAT) {
-        return TIPO_FLOAT;
-    }
-    // int + float ou float + int = ERRO
-    if ((tipo1 == TIPO_INT && tipo2 == TIPO_FLOAT) || 
-        (tipo1 == TIPO_FLOAT && tipo2 == TIPO_INT)) {
-        fprintf(stderr, "ERRO SEMÂNTICO na linha %d: tipos incompatíveis (%s e %s) em operação.\n",
-                linha, tipo_para_string(tipo1), tipo_para_string(tipo2));
-        exit(ERR_WRONG_TYPE);
-    }
-    
-    return TIPO_NAO_DEFINIDO;
+    return n;
+}
+
+asd_tree_t* asd_arg_expr(asd_tree_t *arg) {
+    return (arg && arg->number_of_children > 0) ? arg->children[0] : NULL;
+}
+
+asd_tree_t* asd_arg_next(asd_tree_t *arg) {
+    return (arg && arg->number_of_children > 1) ? arg->children[1] : NULL;
 }

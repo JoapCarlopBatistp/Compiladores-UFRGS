@@ -10,7 +10,7 @@ extern int yyparse(void);
 extern int yylex_destroy(void);
 
 asd_tree_t *arvore = NULL;
-tabela_simbolos_t *pilha_tabelas = NULL;  // ← definição real (sem extern!)
+tabela_simbolos_t *pilha_tabelas = NULL;
 
 int main (int argc, char **argv)
 {
@@ -19,7 +19,7 @@ int main (int argc, char **argv)
 
   int ret = yyparse();
 
-   if (arvore) {                           // << só imprime/libera se não for NULL
+   if (arvore) {
     asd_print_graphviz(arvore);
     // Libera AST
     asd_free(arvore);

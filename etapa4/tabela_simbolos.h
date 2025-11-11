@@ -40,8 +40,9 @@ typedef struct entrada_tabela {
 
 // Tabela de símbolos
 typedef struct tabela_simbolos {
-    entrada_tabela_t *primeiro;     // Primeira entrada da tabela
+    entrada_tabela_t *primeiro;       // Primeira entrada da tabela
     struct tabela_simbolos *anterior; // Tabela do escopo anterior (pilha)
+    entrada_tabela_t *funcao;         // Função associada ao escopo (se houver)
 } tabela_simbolos_t;
 
 // Funções da tabela de símbolos
@@ -51,14 +52,19 @@ void desempilhar_tabela(tabela_simbolos_t **pilha);
 void liberar_tabela(tabela_simbolos_t *tabela);
 
 // Funções de manipulação de entradas
-void inserir_simbolo(tabela_simbolos_t *tabela, char *chave, natureza_t nat, 
-                     tipo_dado_t tipo, int linha, valor_t *val);
-entrada_tabela_t* buscar_simbolo(tabela_simbolos_t *pilha, char *chave);
-entrada_tabela_t* buscar_simbolo_escopo_atual(tabela_simbolos_t *tabela, char *chave);
+void inserir_simbolo(tabela_simbolos_t *tabela, const char *chave, natureza_t nat, 
+                     tipo_dado_t tipo, int linha, const valor_t *val);
+entrada_tabela_t* buscar_simbolo(tabela_simbolos_t *pilha, const char *chave);
+entrada_tabela_t* buscar_simbolo_escopo_atual(tabela_simbolos_t *tabela, const char *chave);
 
 // Funções para parâmetros de função
 void adicionar_parametro(entrada_tabela_t *entrada, tipo_dado_t tipo);
 void liberar_parametros(parametro_t *params);
+void adicionar_parametro_funcao(entrada_tabela_t *func, tipo_dado_t tipo);
+void declarar_variavel_global(tabela_simbolos_t *pilha, valor_t *token, tipo_dado_t tipo, int linha);
+void declarar_variavel_local(tabela_simbolos_t *pilha, valor_t *token, tipo_dado_t tipo, int linha);
+entrada_tabela_t* declarar_funcao(tabela_simbolos_t *pilha, valor_t *token, tipo_dado_t tipo, int linha);
+void registrar_literal(tabela_simbolos_t *pilha, valor_t *token, tipo_dado_t tipo);
 
 // Função para converter string de tipo em tipo_dado_t
 tipo_dado_t string_para_tipo(char *tipo_str);

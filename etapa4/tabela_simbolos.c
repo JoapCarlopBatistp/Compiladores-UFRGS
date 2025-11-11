@@ -7,6 +7,32 @@
 #include <string.h>
 #include "tabela_simbolos.h"
 
+static valor_t* duplicar_valor(const valor_t *src) {
+    if (src == NULL) return NULL;
+
+    valor_t *dest = (valor_t*)malloc(sizeof(valor_t));
+    if (dest == NULL) {
+        fprintf(stderr, "Erro ao alocar memória para valor_t\n");
+        exit(1);
+    }
+
+    dest->linha_token = src->linha_token;
+    dest->tipo = src->tipo;
+    dest->lexema = src->lexema ? strdup(src->lexema) : NULL;
+    if (src->lexema && dest->lexema == NULL) {
+        fprintf(stderr, "Erro ao alocar memória para lexema de valor_t\n");
+        exit(1);
+    }
+
+    return dest;
+}
+
+static void liberar_valor_copiado(valor_t *val) {
+    if (val == NULL) return;
+    free(val->lexema);
+    free(val);
+}
+
 // Cria nova tabela de símbolos
 tabela_simbolos_t* criar_tabela() {
     tabela_simbolos_t *tabela = (tabela_simbolos_t*)malloc(sizeof(tabela_simbolos_t));
@@ -16,13 +42,18 @@ tabela_simbolos_t* criar_tabela() {
     }
     tabela->primeiro = NULL;
     tabela->anterior = NULL;
+    tabela->funcao = NULL;
     return tabela;
 }
 
 // Empilha nova tabela (novo escopo)
 void empilhar_tabela(tabela_simbolos_t **pilha) {
+    if (pilha == NULL) return;
+
+    tabela_simbolos_t *topo_atual = *pilha;
     tabela_simbolos_t *nova = criar_tabela();
-    nova->anterior = *pilha;
+    nova->funcao = topo_atual ? topo_atual->funcao : NULL;
+    nova->anterior = topo_atual;
     *pilha = nova;
 }
 
@@ -44,6 +75,33 @@ void liberar_parametros(parametro_t *params) {
     }
 }
 
+void adicionar_parametro_funcao(entrada_tabela_t *func, tipo_dado_t tipo) {
+    adicionar_parametro(func, tipo);
+}
+
+void declarar_variavel_global(tabela_simbolos_t *pilha, valor_t *token, tipo_dado_t tipo, int linha) {
+    if (pilha == NULL || token == NULL) return;
+    inserir_simbolo(pilha, token->lexema, NAT_IDENTIFICADOR, tipo, linha, token);
+}
+
+void declarar_variavel_local(tabela_simbolos_t *pilha, valor_t *token, tipo_dado_t tipo, int linha) {
+    if (pilha == NULL || token == NULL) return;
+    inserir_simbolo(pilha, token->lexema, NAT_IDENTIFICADOR, tipo, linha, token);
+}
+
+entrada_tabela_t* declarar_funcao(tabela_simbolos_t *pilha, valor_t *token, tipo_dado_t tipo, int linha) {
+    if (pilha == NULL || token == NULL) return NULL;
+    inserir_simbolo(pilha, token->lexema, NAT_FUNCAO, tipo, linha, token);
+    return buscar_simbolo(pilha, token->lexema);
+}
+
+void registrar_literal(tabela_simbolos_t *pilha, valor_t *token, tipo_dado_t tipo) {
+    if (token == NULL || pilha == NULL) return;
+    if (buscar_simbolo_escopo_atual(pilha, token->lexema) == NULL) {
+        inserir_simbolo(pilha, token->lexema, NAT_LITERAL, tipo, token->linha_token, token);
+    }
+}
+
 // Libera tabela de símbolos
 void liberar_tabela(tabela_simbolos_t *tabela) {
     if (tabela == NULL) return;
@@ -57,7 +115,7 @@ void liberar_tabela(tabela_simbolos_t *tabela) {
         if (temp->parametros != NULL) {
             liberar_parametros(temp->parametros);
         }
-        // Não libera valor aqui pois pode ser usado na AST
+        liberar_valor_copiado(temp->valor);
         free(temp);
     }
     
@@ -65,8 +123,8 @@ void liberar_tabela(tabela_simbolos_t *tabela) {
 }
 
 // Insere símbolo na tabela (escopo atual)
-void inserir_simbolo(tabela_simbolos_t *tabela, char *chave, natureza_t nat,
-                     tipo_dado_t tipo, int linha, valor_t *val) {
+void inserir_simbolo(tabela_simbolos_t *tabela, const char *chave, natureza_t nat,
+                     tipo_dado_t tipo, int linha, const valor_t *val) {
     if (tabela == NULL) return;
     
     entrada_tabela_t *nova = (entrada_tabela_t*)malloc(sizeof(entrada_tabela_t));
@@ -80,14 +138,14 @@ void inserir_simbolo(tabela_simbolos_t *tabela, char *chave, natureza_t nat,
     nova->tipo = tipo;
     nova->parametros = NULL;
     nova->linha = linha;
-    nova->valor = val;
+    nova->valor = duplicar_valor(val);
     nova->proximo = tabela->primeiro;
     
     tabela->primeiro = nova;
 }
 
 // Busca símbolo apenas no escopo atual
-entrada_tabela_t* buscar_simbolo_escopo_atual(tabela_simbolos_t *tabela, char *chave) {
+entrada_tabela_t* buscar_simbolo_escopo_atual(tabela_simbolos_t *tabela, const char *chave) {
     if (tabela == NULL || chave == NULL) return NULL;
     
     entrada_tabela_t *atual = tabela->primeiro;
@@ -102,7 +160,7 @@ entrada_tabela_t* buscar_simbolo_escopo_atual(tabela_simbolos_t *tabela, char *c
 }
 
 // Busca símbolo em toda a pilha de tabelas (do escopo atual até o global)
-entrada_tabela_t* buscar_simbolo(tabela_simbolos_t *pilha, char *chave) {
+entrada_tabela_t* buscar_simbolo(tabela_simbolos_t *pilha, const char *chave) {
     if (chave == NULL) return NULL;
     
     tabela_simbolos_t *atual = pilha;

@@ -43,9 +43,8 @@ void asd_print_graphviz (asd_tree_t *tree);
 
 void asd_libera_valor(valor_t *val);
 
-/*
- * Função para inferir tipo de um nó baseado nos filhos
- */
-tipo_dado_t inferir_tipo_binario(tipo_dado_t tipo1, tipo_dado_t tipo2, int linha);
+int asd_contar_argumentos(asd_tree_t *args);
+asd_tree_t* asd_arg_expr(asd_tree_t *arg);
+asd_tree_t* asd_arg_next(asd_tree_t *arg);
 
 #endif //_ASD_H_

@@ -5,85 +5,35 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdarg.h>
 #include "asd.h"
 #include "valor_token.h"
 #include "tabela_simbolos.h"
 #include "errors.h"
+#include "semantica.h"
 
 int yylex(void);
 void yyerror (char const *mensagem);
 extern int get_line_number();
 
-// Estado semântico E4
-static entrada_tabela_t *func_atual = NULL;
-static tipo_dado_t tipo_em_contexto = TIPO_NAO_DEFINIDO;
-
 extern asd_tree_t *arvore;
 
 // Pilha de tabelas de símbolos (escopo)
-// (Definição REAL em main.c; aqui somente a declaração.)
 extern tabela_simbolos_t *pilha_tabelas;
 
-// ======= Funções auxiliares declaradas por ti =======
-void declarar_variavel_global(char *nome, tipo_dado_t tipo, int linha);
-void declarar_variavel_local(char *nome, tipo_dado_t tipo, int linha);
-entrada_tabela_t* declarar_funcao(char *nome, tipo_dado_t tipo, int linha);
-void verificar_uso_identificador(char *nome, int linha);
-entrada_tabela_t* verificar_chamada_funcao(char *nome, int linha);
-void adicionar_parametro_funcao(entrada_tabela_t *func, tipo_dado_t tipo);
-void verificar_argumentos_funcao(entrada_tabela_t *func, asd_tree_t *args, int linha);
-int contar_argumentos(asd_tree_t *args);
-
-// ---- Impressão padronizada de erros E4 ----
-static const char* err_name(int code) {
-    switch (code) {
-        case ERR_UNDECLARED:      return "ERR_UNDECLARED";
-        case ERR_DECLARED:        return "ERR_DECLARED";
-        case ERR_VARIABLE:        return "ERR_VARIABLE";
-        case ERR_FUNCTION:        return "ERR_FUNCTION";
-        case ERR_WRONG_TYPE:      return "ERR_WRONG_TYPE";
-        case ERR_MISSING_ARGS:    return "ERR_MISSING_ARGS";
-        case ERR_EXCESS_ARGS:     return "ERR_EXCESS_ARGS";
-        case ERR_WRONG_TYPE_ARGS: return "ERR_WRONG_TYPE_ARGS";
-        default:                  return "ERR_UNKNOWN";
-    }
-}
-
-// Usa a linha fornecida
-static void semerr_line(int code, int linha, const char *fmt, ...) {
-    va_list ap;
-    fprintf(stderr, "ERRO SEMÂNTICO [%s %d] linha %d: ", err_name(code), code, linha);
-    va_start(ap, fmt);
-    vfprintf(stderr, fmt, ap);
-    va_end(ap);
-    if (fmt[0] && fmt[strlen(fmt)-1] != '\n') fprintf(stderr, "\n");
-    exit(code);
-}
-
-// Usa get_line_number()
-static void semerr(int code, const char *fmt, ...) {
-    va_list ap;
-    int linha = get_line_number();
-    fprintf(stderr, "ERRO SEMÂNTICO [%s %d] linha %d: ", err_name(code), code, linha);
-    va_start(ap, fmt);
-    vfprintf(stderr, fmt, ap);
-    va_end(ap);
-    if (fmt[0] && fmt[strlen(fmt)-1] != '\n') fprintf(stderr, "\n");
-    exit(code);
-}
+// ======= Funções auxiliares declaradas =======
 %}
 
 %code requires {
     #include "valor_token.h"
     #include "asd.h"
     #include "tabela_simbolos.h"
+    #include "semantica.h"
 }
 
 %union {
- 	asd_tree_t *no;
+  asd_tree_t *no;
  	valor_t *valor_lexico;
-    tipo_dado_t tipo;
+  tipo_dado_t tipo;
 }
 
 %define parse.error verbose
@@ -113,7 +63,7 @@ static void semerr(int code, const char *fmt, ...) {
 %type<no> lista
 %type<no> elemento
 %type<no> declaracao_variavel_global
-%type<no> tipo
+%type<tipo> tipo
 %type<no> definicao_funcao
 %type<no> corpo
 %type<no> cabecalho
@@ -195,19 +145,20 @@ elemento
 declaracao_variavel_global
   : TK_VAR TK_ID TK_ATRIB tipo
     {
-        // Declara no escopo corrente (global se no topo)
-        declarar_variavel_global($2->lexema, tipo_em_contexto, get_line_number());
-        $$ = asd_new($2->lexema);
-        free($2->lexema);
-        free($2);
-        if ($4 != NULL) asd_free($4);
-        $$ = NULL; // não precisamos manter nó de declaração
+        valor_t *token_identificador = $2;
+        tipo_dado_t tipo_declarado = $4;
+        verificar_semantica_variavel_global(pilha_tabelas, token_identificador, get_line_number(), 0);
+        declarar_variavel_global(pilha_tabelas, token_identificador, tipo_declarado, get_line_number());
+        
+        $$ = NULL;
+        free(token_identificador->lexema);
+        free(token_identificador);
     }
   ;
 
 tipo
-  : TK_DECIMAL { tipo_em_contexto = TIPO_FLOAT; $$ = NULL; }
-  | TK_INTEIRO { tipo_em_contexto = TIPO_INT;   $$ = NULL; }
+  : TK_DECIMAL { $$ = TIPO_FLOAT; }
+  | TK_INTEIRO { $$ = TIPO_INT;   }
   ;
 
 // DEFINIÇÃO DE FUNÇÃO
@@ -227,7 +178,6 @@ definicao_funcao
         }
         // fecha escopo da função
         desempilhar_tabela(&pilha_tabelas);
-        func_atual = NULL;
     }
   ;
 
@@ -235,16 +185,21 @@ cabecalho
   : TK_ID TK_SETA tipo
     {
         // Declara a função no escopo corrente e abre escopo para parâmetros
-      func_atual = declarar_funcao($1->lexema, tipo_em_contexto, get_line_number());
+      if (buscar_simbolo_escopo_atual(pilha_tabelas, $1->lexema) != NULL) {
+          fprintf(stderr,
+                  "ERRO SEMÂNTICO [%s %d] linha %d: função '%s' já foi declarada.\n",
+                  semantica_nome_erro(ERR_DECLARED), ERR_DECLARED, get_line_number(), $1->lexema);
+          exit(ERR_DECLARED);
+      }
+      entrada_tabela_t *funcao = declarar_funcao(pilha_tabelas, $1, $3, get_line_number());
       empilhar_tabela(&pilha_tabelas);
+      pilha_tabelas->funcao = funcao;
     }
     lista_parametros_opcionais TK_ATRIB
     {
       $$ = asd_new($1->lexema);
       free($1->lexema);
       free($1);
-      if ($3 != NULL) asd_free($3);
-      if ($5 != NULL) asd_free($5);
     }
   ;
 
@@ -275,12 +230,17 @@ lista_parametros
 parametro
   : TK_ID TK_ATRIB tipo
     {
-        // adiciona tipo formal e insere parâmetro como variável do escopo da função
-        adicionar_parametro_funcao(func_atual, tipo_em_contexto);
-        declarar_variavel_local($1->lexema, tipo_em_contexto, get_line_number());
-        free($1->lexema);
-        free($1);
-        if ($3 != NULL) asd_free($3);
+        valor_t *token_parametro = $1;
+        tipo_dado_t tipo_parametro = $3;
+        entrada_tabela_t *funcao_contexto = pilha_tabelas ? pilha_tabelas->funcao : NULL;
+
+        verificar_semantica_parametro(funcao_contexto, get_line_number());
+        adicionar_parametro_funcao(funcao_contexto, tipo_parametro);
+        verificar_semantica_variavel_local(pilha_tabelas, token_parametro, get_line_number(), 1);
+        declarar_variavel_local(pilha_tabelas, token_parametro, tipo_parametro, get_line_number());
+        
+        free(token_parametro->lexema);
+        free(token_parametro);
         $$ = NULL;
     }
   ;
@@ -304,8 +264,9 @@ comando_simples
 // construção que aceite um comando simples.
 
 bloco_comando
-  : '[' { empilhar_tabela(&pilha_tabelas); } sequencia_comando_simples ']' 
-    { $$ = $3; desempilhar_tabela(&pilha_tabelas); }
+  : '[' { empilhar_tabela(&pilha_tabelas); }
+    sequencia_comando_simples
+    ']' { $$ = $3; desempilhar_tabela(&pilha_tabelas); }
   ; // escopo de bloco
 
 sequencia_comando_simples
@@ -332,39 +293,54 @@ sequencia_comando_simples
 declaracao_variavel_local
   : TK_VAR TK_ID TK_ATRIB tipo
     {
-        // Declara no escopo atual (local)
-        declarar_variavel_local($2->lexema, tipo_em_contexto, get_line_number());
+        valor_t *token_identificador = $2;
+        tipo_dado_t tipo_declarado = $4;
+        verificar_semantica_variavel_local(pilha_tabelas, token_identificador, get_line_number(), 1);
+        declarar_variavel_local(pilha_tabelas, token_identificador, tipo_declarado, get_line_number());
         $$ = NULL;
-        free($2->lexema);
-        free($2);
-        if ($4 != NULL) asd_free($4);
+        free(token_identificador->lexema);
+        free(token_identificador);
     }
   | TK_VAR TK_ID TK_ATRIB tipo TK_COM literal
     {
-        // Declara local e checa tipo da inicialização (E4)
-        tipo_dado_t tvar = tipo_em_contexto; // setado por 'tipo'
-        if ($6 == NULL) {
-            semerr(ERR_WRONG_TYPE, "literal inválido.");
-        }
-        if ($6->tipo != tvar && $6->tipo != TIPO_NAO_DEFINIDO) {
-            semerr(ERR_WRONG_TYPE, "inicialização de '%s' com tipo incompatível (%s := %s).",
-                   $2->lexema, tipo_para_string(tvar), tipo_para_string($6->tipo));
-        }
-        declarar_variavel_local($2->lexema, tvar, get_line_number());
-        // monta um nó "com" apenas para manter a AST de declaração+init
+        valor_t *token_identificador = $2;
+        tipo_dado_t tipo_declarado = $4;
+        asd_tree_t *no_literal = $6;
+
+        verificar_semantica_variavel_local(pilha_tabelas, token_identificador, get_line_number(), 1);
+        verificar_semantica_inicializacao_variavel_local(no_literal, token_identificador, tipo_declarado, get_line_number());
+        declarar_variavel_local(pilha_tabelas, token_identificador, tipo_declarado, get_line_number());
+        
         $$ = asd_new("com");
-        asd_tree_t *decl = asd_new($2->lexema);
-        asd_add_child($$, decl);
-        asd_add_child($$, $6);
-        free($2->lexema);
-        free($2);
-        if ($4 != NULL) asd_free($4);
+        asd_tree_t *no_identificador = asd_new(token_identificador->lexema);
+        no_identificador->tipo = tipo_declarado;
+        asd_add_child($$, no_identificador);
+        asd_add_child($$, no_literal);
+        $$->tipo = tipo_declarado;
+        free(token_identificador->lexema);
+        free(token_identificador);
     }
   ;
 
 literal
-  : TK_LI_INTEIRO { $$ = asd_new($1->lexema); $$->tipo = TIPO_INT;  free($1->lexema); free($1); }
-  | TK_LI_DECIMAL { $$ = asd_new($1->lexema); $$->tipo = TIPO_FLOAT; free($1->lexema); free($1); }
+  : TK_LI_INTEIRO
+    {
+        valor_t *token_literal = $1;
+        registrar_literal(pilha_tabelas, token_literal, TIPO_INT);
+        $$ = asd_new(token_literal->lexema);
+        $$->tipo = TIPO_INT;
+        free(token_literal->lexema);
+        free(token_literal);
+    }
+  | TK_LI_DECIMAL
+    {
+        valor_t *token_literal = $1;
+        registrar_literal(pilha_tabelas, token_literal, TIPO_FLOAT);
+        $$ = asd_new(token_literal->lexema);
+        $$->tipo = TIPO_FLOAT;
+        free(token_literal->lexema);
+        free(token_literal);
+    }
   ;
 
 // COMANDO DE ATRIBUIÇÃO
@@ -374,22 +350,21 @@ literal
 comando_atribuicao
   : TK_ID TK_ATRIB expressao
     {
-        verificar_uso_identificador($1->lexema, get_line_number());
-        entrada_tabela_t *e = buscar_simbolo(pilha_tabelas, $1->lexema);
-        if (e->natureza != NAT_IDENTIFICADOR) {
-            semerr(ERR_VARIABLE, "'%s' não é variável.", e->chave);
-        }
-        if ($3->tipo != e->tipo && $3->tipo != TIPO_NAO_DEFINIDO) {
-            semerr(ERR_WRONG_TYPE, "atribuição incompatível (%s := %s).",
-                   tipo_para_string(e->tipo), tipo_para_string($3->tipo));
-        }
+        valor_t *token_identificador = $1;
+        asd_tree_t *no_expressao = $3;
+
+        verificar_declaracao_identificador(pilha_tabelas, token_identificador->lexema, get_line_number());
+        entrada_tabela_t *entrada_simbolo = buscar_simbolo(pilha_tabelas, token_identificador->lexema);
+        verificar_semantica_atribuicao(entrada_simbolo, no_expressao, get_line_number());
+        
         $$ = asd_new(":=");
-        asd_tree_t *lhs = asd_new($1->lexema);
-        asd_add_child($$, lhs);
-        asd_add_child($$, $3);
-        $$->tipo = e->tipo;
-        free($1->lexema);
-        free($1);
+        asd_tree_t *no_lado_esquerdo = asd_new(token_identificador->lexema);
+        no_lado_esquerdo->tipo = entrada_simbolo->tipo;
+        asd_add_child($$, no_lado_esquerdo);
+        asd_add_child($$, no_expressao);
+        $$->tipo = entrada_simbolo->tipo;
+        free(token_identificador->lexema);
+        free(token_identificador);
     }
   ;
 
@@ -401,15 +376,17 @@ comando_atribuicao
 chamada_funcao
   : TK_ID '(' argumentos ')'
     {
-      entrada_tabela_t *f = verificar_chamada_funcao($1->lexema, get_line_number());
-      verificar_argumentos_funcao(f, $3, get_line_number());
+      valor_t *token_identificador = $1;
+      asd_tree_t *nos_argumentos = $3;
+      entrada_tabela_t *entrada_funcao = verificar_chamada_funcao(pilha_tabelas, token_identificador->lexema, get_line_number());
+      verificar_argumentos_funcao(entrada_funcao, nos_argumentos, get_line_number());
 
-      char *node_label = (char*)calloc(strlen($1->lexema)+6, sizeof(char));
-      strcpy(node_label, "call "); strcat(node_label, $1->lexema);
-      $$ = asd_new(node_label);
-      if ($3) asd_add_child($$, $3);
-      $$->tipo = f->tipo;
-      free(node_label); free($1->lexema); free($1);
+      char *rotulo_no = (char*)calloc(strlen(token_identificador->lexema)+6, sizeof(char));
+      strcpy(rotulo_no, "call "); strcat(rotulo_no, token_identificador->lexema);
+      $$ = asd_new(rotulo_no);
+      if (nos_argumentos) asd_add_child($$, nos_argumentos);
+      $$->tipo = entrada_funcao->tipo;
+      free(rotulo_no); free(token_identificador->lexema); free(token_identificador);
     }
   ;
 
@@ -442,17 +419,13 @@ argumento
 comando_retorno
   : TK_RETORNA expressao TK_ATRIB tipo
     {
-        if (!func_atual) {
-            semerr(ERR_WRONG_TYPE, "'retorna' fora de função.");
-        }
-        if ($2->tipo != func_atual->tipo && $2->tipo != TIPO_NAO_DEFINIDO) {
-            semerr(ERR_WRONG_TYPE, "tipo de retorno incompatível em '%s' (%s esperado, %s dado).",
-                   func_atual->chave, tipo_para_string(func_atual->tipo), tipo_para_string($2->tipo));
-        }
+        asd_tree_t *no_expressao = $2;
+        entrada_tabela_t *funcao_contexto = pilha_tabelas ? pilha_tabelas->funcao : NULL;
+        verificar_semantica_retorno(funcao_contexto, no_expressao, get_line_number());
+
         $$ = asd_new("retorna");
-        asd_add_child($$, $2);
-        if ($4 != NULL) asd_free($4);
-        $$->tipo = $2->tipo;
+        asd_add_child($$, no_expressao);
+        $$->tipo = no_expressao->tipo;
     }
   ;
 
@@ -471,18 +444,25 @@ construcao_fluxo_controle
 construcao_condicional
   : TK_SE '(' expressao ')' bloco_comando
     {
+        asd_tree_t *no_condicao = $3;
+        asd_tree_t *no_bloco_then = $5;
         $$ = asd_new("se");
-        asd_add_child($$, $3); // condição
-        asd_add_child($$, $5); // bloco then
-        $$->tipo = $3->tipo;   // tipo do comando = tipo da expressão de teste
+        asd_add_child($$, no_condicao);
+        asd_add_child($$, no_bloco_then);
+        $$->tipo = no_condicao->tipo;
     }
   | TK_SE '(' expressao ')' bloco_comando TK_SENAO bloco_comando
     {
+        asd_tree_t *no_condicao = $3;
+        asd_tree_t *no_bloco_then = $5;
+        asd_tree_t *no_bloco_else = $7;
+        verificar_semantica_condicional(no_bloco_then, no_bloco_else, get_line_number());
+
         $$ = asd_new("se");
-        asd_add_child($$, $3); // condição
-        asd_add_child($$, $5); // bloco then
-        asd_add_child($$, $7); // bloco else
-        $$->tipo = $3->tipo;
+        asd_add_child($$, no_condicao);
+        asd_add_child($$, no_bloco_then);
+        asd_add_child($$, no_bloco_else);
+        $$->tipo = no_condicao->tipo;
     }
   ;
 
@@ -492,10 +472,12 @@ construcao_condicional
 construcao_iterativa
   : TK_ENQUANTO '(' expressao ')' bloco_comando
     {
+        asd_tree_t *no_condicao = $3;
+        asd_tree_t *no_bloco = $5;
         $$ = asd_new("enquanto");
-        asd_add_child($$, $3);
-        asd_add_child($$, $5);
-        $$->tipo = $3->tipo; // tipo do comando = tipo da expressão de teste
+        asd_add_child($$, no_condicao);
+        asd_add_child($$, no_bloco);
+        $$->tipo = no_condicao->tipo;
     }
   ;
 
@@ -514,69 +496,187 @@ expressao
 // Nível 7: binário infixado or (|)
 expressao_or
   : expressao_and '|' expressao_or
-    { $$ = asd_new("|"); asd_add_child($$, $1); asd_add_child($$, $3);
-      $$->tipo = inferir_tipo_binario($1->tipo, $3->tipo, get_line_number()); }
+    {
+      asd_tree_t *no_esquerdo = $1;
+      asd_tree_t *no_direito = $3;
+      verificar_tipo_binario(no_esquerdo->tipo, no_direito->tipo, get_line_number());
+
+      asd_tree_t *no_operador = asd_new("|");
+      asd_add_child(no_operador, no_esquerdo);
+      asd_add_child(no_operador, no_direito);
+      no_operador->tipo = inferir_tipo_binario(no_esquerdo->tipo, no_direito->tipo);
+      $$ = no_operador;
+    }
   | expressao_and { $$ = $1; }
   ;
 
 // Nível 6: binário infixado and (&)
 expressao_and
   : expressao_igual_desigual '&' expressao_and
-    { $$ = asd_new("&"); asd_add_child($$, $1); asd_add_child($$, $3);
-      $$->tipo = inferir_tipo_binario($1->tipo, $3->tipo, get_line_number()); }
+    {
+      asd_tree_t *no_esquerdo = $1;
+      asd_tree_t *no_direito = $3;
+      verificar_tipo_binario(no_esquerdo->tipo, no_direito->tipo, get_line_number());
+
+      asd_tree_t *no_operador = asd_new("&");
+      asd_add_child(no_operador, no_esquerdo);
+      asd_add_child(no_operador, no_direito);
+      no_operador->tipo = inferir_tipo_binario(no_esquerdo->tipo, no_direito->tipo);
+      $$ = no_operador;
+    }
   | expressao_igual_desigual { $$ = $1; }
   ;
 
 // Nível 5: igualdade e desigualdade (==, !=)
 expressao_igual_desigual
   : expressao_relacional TK_OC_EQ expressao_igual_desigual
-    { $$ = asd_new("=="); asd_add_child($$, $1); asd_add_child($$, $3);
-      $$->tipo = inferir_tipo_binario($1->tipo, $3->tipo, get_line_number()); }
+    {
+      asd_tree_t *no_esquerdo = $1;
+      asd_tree_t *no_direito = $3;
+      verificar_tipo_binario(no_esquerdo->tipo, no_direito->tipo, get_line_number());
+
+      asd_tree_t *no_operador = asd_new("==");
+      asd_add_child(no_operador, no_esquerdo);
+      asd_add_child(no_operador, no_direito);
+      no_operador->tipo = inferir_tipo_binario(no_esquerdo->tipo, no_direito->tipo);
+      $$ = no_operador;
+    }
   | expressao_relacional TK_OC_NE expressao_igual_desigual
-    { $$ = asd_new("!="); asd_add_child($$, $1); asd_add_child($$, $3);
-      $$->tipo = inferir_tipo_binario($1->tipo, $3->tipo, get_line_number()); }
+    {
+      asd_tree_t *no_esquerdo = $1;
+      asd_tree_t *no_direito = $3;
+      verificar_tipo_binario(no_esquerdo->tipo, no_direito->tipo, get_line_number());
+
+      asd_tree_t *no_operador = asd_new("!=");
+      asd_add_child(no_operador, no_esquerdo);
+      asd_add_child(no_operador, no_direito);
+      no_operador->tipo = inferir_tipo_binario(no_esquerdo->tipo, no_direito->tipo);
+      $$ = no_operador;
+    }
   | expressao_relacional { $$ = $1; }
   ;
 
 // Nível 4: relacionais (<, >, <=, >=)
 expressao_relacional
   : expressao_soma_subtracao '<'      expressao_relacional
-    { $$ = asd_new("<"); asd_add_child($$, $1); asd_add_child($$, $3);
-      $$->tipo = inferir_tipo_binario($1->tipo, $3->tipo, get_line_number()); }
+    {
+      asd_tree_t *no_esquerdo = $1;
+      asd_tree_t *no_direito = $3;
+      verificar_tipo_binario(no_esquerdo->tipo, no_direito->tipo, get_line_number());
+
+      asd_tree_t *no_operador = asd_new("<");
+      asd_add_child(no_operador, no_esquerdo);
+      asd_add_child(no_operador, no_direito);
+      no_operador->tipo = inferir_tipo_binario(no_esquerdo->tipo, no_direito->tipo);
+      $$ = no_operador;
+    }
   | expressao_soma_subtracao '>'      expressao_relacional
-    { $$ = asd_new(">"); asd_add_child($$, $1); asd_add_child($$, $3);
-      $$->tipo = inferir_tipo_binario($1->tipo, $3->tipo, get_line_number()); }
+    {
+      asd_tree_t *no_esquerdo = $1;
+      asd_tree_t *no_direito = $3;
+      verificar_tipo_binario(no_esquerdo->tipo, no_direito->tipo, get_line_number());
+
+      asd_tree_t *no_operador = asd_new(">");
+      asd_add_child(no_operador, no_esquerdo);
+      asd_add_child(no_operador, no_direito);
+      no_operador->tipo = inferir_tipo_binario(no_esquerdo->tipo, no_direito->tipo);
+      $$ = no_operador;
+    }
   | expressao_soma_subtracao TK_OC_LE expressao_relacional
-    { $$ = asd_new("<="); asd_add_child($$, $1); asd_add_child($$, $3);
-      $$->tipo = inferir_tipo_binario($1->tipo, $3->tipo, get_line_number()); }
+    {
+      asd_tree_t *no_esquerdo = $1;
+      asd_tree_t *no_direito = $3;
+      verificar_tipo_binario(no_esquerdo->tipo, no_direito->tipo, get_line_number());
+
+      asd_tree_t *no_operador = asd_new("<=");
+      asd_add_child(no_operador, no_esquerdo);
+      asd_add_child(no_operador, no_direito);
+      no_operador->tipo = inferir_tipo_binario(no_esquerdo->tipo, no_direito->tipo);
+      $$ = no_operador;
+    }
   | expressao_soma_subtracao TK_OC_GE expressao_relacional
-    { $$ = asd_new(">="); asd_add_child($$, $1); asd_add_child($$, $3);
-      $$->tipo = inferir_tipo_binario($1->tipo, $3->tipo, get_line_number()); }
+    {
+      asd_tree_t *no_esquerdo = $1;
+      asd_tree_t *no_direito = $3;
+      verificar_tipo_binario(no_esquerdo->tipo, no_direito->tipo, get_line_number());
+
+      asd_tree_t *no_operador = asd_new(">=");
+      asd_add_child(no_operador, no_esquerdo);
+      asd_add_child(no_operador, no_direito);
+      no_operador->tipo = inferir_tipo_binario(no_esquerdo->tipo, no_direito->tipo);
+      $$ = no_operador;
+    }
   | expressao_soma_subtracao { $$ = $1; }
   ;
 
 // Nível 3: soma e subtração
 expressao_soma_subtracao
   : expressao_mult_div_mod '+' expressao_soma_subtracao
-    { $$ = asd_new("+"); asd_add_child($$, $1); asd_add_child($$, $3);
-      $$->tipo = inferir_tipo_binario($1->tipo, $3->tipo, get_line_number()); }
+    {
+      asd_tree_t *no_esquerdo = $1;
+      asd_tree_t *no_direito = $3;
+      verificar_tipo_binario(no_esquerdo->tipo, no_direito->tipo, get_line_number());
+
+      asd_tree_t *no_operador = asd_new("+");
+      asd_add_child(no_operador, no_esquerdo);
+      asd_add_child(no_operador, no_direito);
+      no_operador->tipo = inferir_tipo_binario(no_esquerdo->tipo, no_direito->tipo);
+      $$ = no_operador;
+    }
   | expressao_mult_div_mod '-' expressao_soma_subtracao
-    { $$ = asd_new("-"); asd_add_child($$, $1); asd_add_child($$, $3);
-      $$->tipo = inferir_tipo_binario($1->tipo, $3->tipo, get_line_number()); }
+    {
+      asd_tree_t *no_esquerdo = $1;
+      asd_tree_t *no_direito = $3;
+      verificar_tipo_binario(no_esquerdo->tipo, no_direito->tipo, get_line_number());
+
+      asd_tree_t *no_operador = asd_new("-");
+      asd_add_child(no_operador, no_esquerdo);
+      asd_add_child(no_operador, no_direito);
+      no_operador->tipo = inferir_tipo_binario(no_esquerdo->tipo, no_direito->tipo);
+      $$ = no_operador;
+    }
   | expressao_mult_div_mod { $$ = $1; }
   ;
 
 // Nível 2: multiplicação, divisão e mod
 expressao_mult_div_mod
   : expressao_unitario '*' expressao_mult_div_mod
-    { $$ = asd_new("*"); asd_add_child($$, $1); asd_add_child($$, $3);
-      $$->tipo = inferir_tipo_binario($1->tipo, $3->tipo, get_line_number()); }
+    {
+      asd_tree_t *no_esquerdo = $1;
+      asd_tree_t *no_direito = $3;
+      verificar_tipo_binario(no_esquerdo->tipo, no_direito->tipo, get_line_number());
+
+      asd_tree_t *no_operador = asd_new("*");
+      asd_add_child(no_operador, no_esquerdo);
+      asd_add_child(no_operador, no_direito);
+      no_operador->tipo = inferir_tipo_binario(no_esquerdo->tipo, no_direito->tipo);
+      $$ = no_operador;
+    }
   | expressao_unitario '/' expressao_mult_div_mod
-    { $$ = asd_new("/"); asd_add_child($$, $1); asd_add_child($$, $3);
-      $$->tipo = inferir_tipo_binario($1->tipo, $3->tipo, get_line_number()); }
+    {
+      asd_tree_t *no_esquerdo = $1;
+      asd_tree_t *no_direito = $3;
+      verificar_tipo_binario(no_esquerdo->tipo, no_direito->tipo, get_line_number());
+
+      asd_tree_t *no_operador = asd_new("/");
+      asd_add_child(no_operador, no_esquerdo);
+      asd_add_child(no_operador, no_direito);
+      no_operador->tipo = inferir_tipo_binario(no_esquerdo->tipo, no_direito->tipo);
+      $$ = no_operador;
+    }
   | expressao_unitario '%' expressao_mult_div_mod
-    { $$ = asd_new("%"); asd_add_child($$, $1); asd_add_child($$, $3);
-      $$->tipo = inferir_tipo_binario($1->tipo, $3->tipo, get_line_number()); }
+    {
+      asd_tree_t *no_esquerdo = $1;
+      asd_tree_t *no_direito = $3;
+      verificar_tipo_binario(no_esquerdo->tipo, no_direito->tipo, get_line_number());
+
+      asd_tree_t *no_operador = asd_new("%");
+      asd_add_child(no_operador, no_esquerdo);
+      asd_add_child(no_operador, no_direito);
+    
+      no_operador->tipo = inferir_tipo_binario(no_esquerdo->tipo, no_direito->tipo);
+      $$ = no_operador;
+    }
   | expressao_unitario { $$ = $1; }
   ;
 
@@ -598,15 +698,15 @@ expressao_pos_fixado
 expressao_primario
   : TK_ID
     {
-        verificar_uso_identificador($1->lexema, get_line_number());
-        entrada_tabela_t *e = buscar_simbolo(pilha_tabelas, $1->lexema);
-        if (e->natureza == NAT_FUNCAO) {
-            semerr(ERR_FUNCTION, "função '%s' usada como variável.", e->chave);
-        }
-        $$ = asd_new($1->lexema);
-        $$->tipo = e->tipo;
-        free($1->lexema);
-        free($1);
+        valor_t *token_identificador = $1;
+        verificar_declaracao_identificador(pilha_tabelas, token_identificador->lexema, get_line_number());
+        entrada_tabela_t *entrada_simbolo = buscar_simbolo(pilha_tabelas, token_identificador->lexema);
+        verificar_semantica_expressao_primario(entrada_simbolo, get_line_number());
+        
+        $$ = asd_new(token_identificador->lexema);
+        $$->tipo = entrada_simbolo->tipo;
+        free(token_identificador->lexema);
+        free(token_identificador);
     }
   | literal { $$ = $1; }
   | '(' expressao ')' { $$ = $2; }
@@ -617,107 +717,4 @@ expressao_primario
 void yyerror (char const *mensagem)
 {
     fprintf(stderr, "[ERRO]\nNa linha %d, com mensagem:\n%s\n", get_line_number(), mensagem);
-}
-
-// ================== Implementações das tuas funções auxiliares ==================
-
-void declarar_variavel_global(char *nome, tipo_dado_t tipo, int linha) {
-    if (buscar_simbolo_escopo_atual(pilha_tabelas, nome) != NULL) {
-        semerr_line(ERR_DECLARED, linha, "variável '%s' já foi declarada.", nome);
-    }
-    inserir_simbolo(pilha_tabelas, nome, NAT_IDENTIFICADOR, tipo, linha, NULL);
-}
-
-void declarar_variavel_local(char *nome, tipo_dado_t tipo, int linha) {
-    if (buscar_simbolo_escopo_atual(pilha_tabelas, nome) != NULL) {
-        semerr_line(ERR_DECLARED, linha, "variável '%s' já foi declarada neste escopo.", nome);
-    }
-    inserir_simbolo(pilha_tabelas, nome, NAT_IDENTIFICADOR, tipo, linha, NULL);
-}
-
-entrada_tabela_t* declarar_funcao(char *nome, tipo_dado_t tipo, int linha) {
-    if (buscar_simbolo_escopo_atual(pilha_tabelas, nome) != NULL) {
-        semerr_line(ERR_DECLARED, linha, "função '%s' já foi declarada.", nome);
-    }
-    inserir_simbolo(pilha_tabelas, nome, NAT_FUNCAO, tipo, linha, NULL);
-    return buscar_simbolo(pilha_tabelas, nome);
-}
-
-void verificar_uso_identificador(char *nome, int linha) {
-    if (buscar_simbolo(pilha_tabelas, nome) == NULL) {
-        semerr_line(ERR_UNDECLARED, linha, "identificador '%s' não foi declarado.", nome);
-    }
-}
-
-entrada_tabela_t* verificar_chamada_funcao(char *nome, int linha) {
-    entrada_tabela_t *entrada = buscar_simbolo(pilha_tabelas, nome);
-    if (entrada == NULL) {
-        semerr_line(ERR_UNDECLARED, linha, "função '%s' não foi declarada.", nome);
-    }
-    if (entrada->natureza != NAT_FUNCAO) {
-        semerr_line(ERR_VARIABLE, linha, "'%s' é uma variável e não pode ser chamada como função.", nome);
-    }
-    return entrada;
-}
-
-void adicionar_parametro_funcao(entrada_tabela_t *func, tipo_dado_t tipo) {
-    adicionar_parametro(func, tipo);
-}
-
-// ===== Helpers para lista de argumentos em nós "arg" =====
-
-// Conta nós "arg" encadeados em child[1]
-int contar_argumentos(asd_tree_t *args) {
-    int n = 0;
-    asd_tree_t *p = args;
-    while (p != NULL) {
-        n++;
-        if (p->number_of_children >= 2)
-            p = p->children[1]; // próximo "arg"
-        else
-            p = NULL;
-    }
-    return n;
-}
-
-static asd_tree_t* arg_expr(asd_tree_t *arg) {
-    return (arg && arg->number_of_children > 0) ? arg->children[0] : NULL;
-}
-static asd_tree_t* arg_next(asd_tree_t *arg) {
-    return (arg && arg->number_of_children > 1) ? arg->children[1] : NULL;
-}
-
-void verificar_argumentos_funcao(entrada_tabela_t *func, asd_tree_t *args, int linha) {
-    // Conta parâmetros esperados
-    int num_params = 0;
-    for (parametro_t *p2 = func->parametros; p2; p2 = p2->proximo) num_params++;
-
-    // Conta argumentos fornecidos
-    int num_args = contar_argumentos(args);
-
-    if (num_args < num_params) {
-        semerr_line(ERR_MISSING_ARGS, linha, "chamada de função '%s' com menos argumentos que o esperado.", func->chave);
-    }
-    if (num_args > num_params) {
-        semerr_line(ERR_EXCESS_ARGS,  linha, "chamada de função '%s' com mais argumentos que o esperado.",  func->chave);
-    }
-
-    // Verifica tipos 1 a 1
-    parametro_t *p = func->parametros;
-    asd_tree_t  *a = args;
-    int pos = 1;
-
-    while (p && a) {
-        asd_tree_t *expr = arg_expr(a);
-        tipo_dado_t ta = expr ? expr->tipo : TIPO_NAO_DEFINIDO;
-
-        if (ta != p->tipo && ta != TIPO_NAO_DEFINIDO) {
-            semerr_line(ERR_WRONG_TYPE_ARGS, linha,
-                "argumento %d da função '%s' com tipo incompatível (esperado %s, recebido %s).",
-                pos, func->chave, tipo_para_string(p->tipo), tipo_para_string(ta));
-        }
-        p = p->proximo;
-        a = arg_next(a);
-        pos++;
-    }
 }

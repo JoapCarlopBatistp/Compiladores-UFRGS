@@ -1,5 +1,7 @@
-// main(int x) -> int { if (x) { return 1 } ; return 2 }
-main -> inteiro com x := inteiro := [
-  se (x) [ retorna 1 := inteiro ],
-  retorna 2 := inteiro
+main -> inteiro := [
+  se (nao_declarada) [
+    retorna 1 := inteiro
+  ] senao [
+    retorna 0 := inteiro
+  ]
 ];
