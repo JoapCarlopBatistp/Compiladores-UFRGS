@@ -4,7 +4,6 @@
 //JOÃO CARLOS BATISTA
 //RICHARD LEAL RAMOS
 
-
 //Espaço reservado para código C
 #include "parser.tab.h"
 #include "valor_token.h"

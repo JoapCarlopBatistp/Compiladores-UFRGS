@@ -1,3 +1,7 @@
+//INTEGRANTES DO GRUPO:
+//JOÃO CARLOS BATISTA
+//RICHARD LEAL RAMOS
+
 #define ERR_UNDECLARED       10 //2.2
 #define ERR_DECLARED         11 //2.2
 #define ERR_VARIABLE         20 //2.3

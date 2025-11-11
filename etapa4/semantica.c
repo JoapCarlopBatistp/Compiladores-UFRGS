@@ -1,3 +1,7 @@
+//INTEGRANTES DO GRUPO:
+//JOÃO CARLOS BATISTA
+//RICHARD LEAL RAMOS
+
 #include <stdio.h>
 #include <stdlib.h>
 #include "semantica.h"
