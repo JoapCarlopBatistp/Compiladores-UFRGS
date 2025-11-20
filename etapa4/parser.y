@@ -1,7 +1,7 @@
 %{
-//INTEGRANTES DO GRUPO:
-//JOÃO CARLOS BATISTA
-//RICHARD LEAL RAMOS
+// INTEGRANTES DO GRUPO:
+// JOÃO CARLOS BATISTA
+// RICHARD LEAL RAMOS
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -195,7 +195,6 @@ cabecalho
     }
   ;
 
-
 corpo
   : bloco_comando { $$ = $1; }
   ;
@@ -319,6 +318,7 @@ literal
     {
         valor_t *token_literal = $1;
         registrar_literal(pilha_tabelas, token_literal, TIPO_INT);
+
         $$ = asd_new(token_literal->lexema);
         $$->tipo = TIPO_INT;
         free(token_literal->lexema);
@@ -328,6 +328,7 @@ literal
     {
         valor_t *token_literal = $1;
         registrar_literal(pilha_tabelas, token_literal, TIPO_FLOAT);
+        
         $$ = asd_new(token_literal->lexema);
         $$->tipo = TIPO_FLOAT;
         free(token_literal->lexema);

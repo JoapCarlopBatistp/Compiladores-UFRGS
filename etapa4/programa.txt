@@ -1,7 +1,47 @@
-main -> inteiro := [
-  se (nao_declarada) [
-    retorna 1 := inteiro
+var global := inteiro,
+var pi := decimal,
+
+soma -> inteiro com a := inteiro, b := inteiro := [
+  retorna a + b := inteiro
+],
+
+fat -> inteiro com n := inteiro := [
+  se (n > 1) [
+    retorna n * fat(n - 1) := inteiro
   ] senao [
-    retorna 0 := inteiro
+    retorna 1 := inteiro
   ]
+],
+
+principal -> inteiro := [
+  global := 10
+  pi := 3.14
+
+  var resultado := inteiro
+  var opcao := inteiro com 1
+
+  [
+    var interno := inteiro com 2
+    [
+      var interno2 := inteiro com 3
+      resultado := soma(interno, interno2)
+    ]
+    resultado := resultado + interno
+  ]
+
+  se (opcao) [
+    resultado := resultado + fat(3)
+  ] senao [
+    resultado := resultado + 1
+  ]
+
+  [
+    var interno := inteiro com 5
+    [
+      var interno2 := inteiro com 6
+      resultado := resultado + interno + interno2
+    ]
+  ]
+
+  retorna resultado := inteiro
 ];

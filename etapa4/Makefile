@@ -1,6 +1,6 @@
-#INTEGRANTES DO GRUPO:
-#JOÃO CARLOS BATISTA
-#RICHARD LEAL RAMOS
+# INTEGRANTES DO GRUPO:
+# JOÃO CARLOS BATISTA
+# RICHARD LEAL RAMOS
 
 #-----------------------------------------------------------------
 
@@ -34,7 +34,7 @@ $(ETAPA): $(OBJ)
 #-----------------------------------------------------------------
 	
 clean:
-	rm -f *.o  lex.yy.c parser.tab.c parser.tab.h $(ETAPA)
+	rm -f *.o  lex.yy.c parser.tab.c parser.tab.h *.dot $(ETAPA)
 
 zip:
 	tar cvzf $(ETAPA).tgz .
