@@ -33,7 +33,7 @@ int main (int argc, char **argv)
   int ret = yyparse();
 
   if (arvore != NULL)
-    gerar_codigo_assembly(arvore, pilha_tabelas);
+    gerar_codigo_assembly(arvore->codigo, pilha_tabelas);
 
   fflush(stdout);
 

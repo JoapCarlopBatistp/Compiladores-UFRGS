@@ -387,8 +387,8 @@ static void traduzir_instrucao(const iloc_t *instrucao, contexto_assembly_t *con
     }
 }
 
-/* Ponto de entrada: recebe a AST com codigo ILOC e emite o assembly completo. */
-void gerar_codigo_assembly(asd_tree_t *programa, tabela_simbolos_t *pilha) {
+/* Ponto de entrada: recebe o codigo ILOC e a pilha de tabelas para emitir o assembly completo. */
+void gerar_codigo_assembly(code_t *codigo, tabela_simbolos_t *pilha) {
     /* Segmento de dados com globais. */
     const tabela_simbolos_t *tabela_global = obter_tabela_global(pilha);
     imprimir_segmento_dados(tabela_global);
@@ -405,12 +405,12 @@ void gerar_codigo_assembly(asd_tree_t *programa, tabela_simbolos_t *pilha) {
     contexto_assembly_t contexto = (contexto_assembly_t){0};
     contexto.tabela_global = tabela_global;
     contexto.nome_funcao = nome_funcao;
-    analisar_codigo(programa ? programa->codigo : NULL, &contexto);
+    analisar_codigo(codigo, &contexto);
     emitir_prologo(&contexto);
 
-    if (programa != NULL && programa->codigo != NULL) {
-        for (int i = 0; i < programa->codigo->ldc; ++i) {
-            traduzir_instrucao(&programa->codigo->codigo[i], &contexto);
+    if (codigo != NULL) {
+        for (int i = 0; i < codigo->ldc; ++i) {
+            traduzir_instrucao(&codigo->codigo[i], &contexto);
         }
     }
 

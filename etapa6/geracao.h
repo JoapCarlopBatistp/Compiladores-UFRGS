@@ -8,6 +8,6 @@
 #include "asd.h"
 #include "tabela_simbolos.h"
 
-void gerar_codigo_assembly(asd_tree_t *programa, tabela_simbolos_t *pilha);
+void gerar_codigo_assembly(code_t *codigo, tabela_simbolos_t *pilha);
 
 #endif
