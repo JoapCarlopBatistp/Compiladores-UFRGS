@@ -445,6 +445,8 @@ comando_retorno
         $$ = asd_new("retorna");
         asd_add_child($$, no_expressao);
         $$->tipo = no_expressao->tipo;
+        append_lista_codigo($$->codigo, no_expressao->codigo);
+        inserir_codigo($$->codigo, criar_iloc(ILOC_RETURN, no_expressao->temp, NULL, NULL));
     }
   ;
 

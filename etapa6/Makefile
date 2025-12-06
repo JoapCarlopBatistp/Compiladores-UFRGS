@@ -10,10 +10,10 @@ BISON=bison
 
 CFLAGS= -Wall -Werror -g #-fsanitize=address
 
-DEPS = parser.tab.h asd.h valor_token.h tabela_simbolos.h iloc.h errors.h semantica.h
-OBJ = lex.yy.o parser.tab.o asd.o main.o tabela_simbolos.o semantica.o iloc.o
+DEPS = parser.tab.h asd.h valor_token.h tabela_simbolos.h iloc.h errors.h semantica.h geracao.h
+OBJ = lex.yy.o parser.tab.o asd.o main.o tabela_simbolos.o semantica.o iloc.o geracao.o
 
-ETAPA = etapa5
+ETAPA = etapa6
 
 #-----------------------------------------------------------------
 
@@ -34,7 +34,7 @@ $(ETAPA): $(OBJ)
 #-----------------------------------------------------------------
 	
 clean:
-	rm -f *.o  lex.yy.c parser.tab.c parser.tab.h *.dot $(ETAPA)
+	rm -f *.o  lex.yy.c parser.tab.c parser.tab.h *.dot *.s *.z $(ETAPA)
 
 zip:
 	tar cvzf $(ETAPA).tgz .

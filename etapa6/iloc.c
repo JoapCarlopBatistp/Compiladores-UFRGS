@@ -130,6 +130,9 @@ void print_iloc(iloc_t iloc)
 	 	case ILOC_LABEL:
 			printf("%s: nop", iloc.campos[0]);
 			break;
+	 	case ILOC_RETURN:
+			printf("return %s", iloc.campos[0]);
+			break;
 	}
 	printf("\n");
 }

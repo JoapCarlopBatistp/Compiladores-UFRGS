@@ -7,6 +7,7 @@
 #include "asd.h"
 #include "tabela_simbolos.h"
 #include "iloc.h"
+#include "geracao.h"
 
 extern int yyparse(void);
 extern int yylex_destroy(void);
@@ -31,9 +32,8 @@ int main (int argc, char **argv)
 
   int ret = yyparse();
 
-  if (arvore != NULL) {
-        exportar_codigo(arvore->codigo);
-  }
+  if (arvore != NULL)
+    gerar_codigo_assembly(arvore, pilha_tabelas);
 
   fflush(stdout);
 

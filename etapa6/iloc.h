@@ -23,7 +23,8 @@ typedef enum opcode {
  	ILOC_OR,	
  	ILOC_CBR,	
  	ILOC_JUMPI,
- 	ILOC_LABEL		
+ 	ILOC_LABEL,
+ 	ILOC_RETURN
 } opcode_t;
 
 char* novo_temporario();        //String para temporário
