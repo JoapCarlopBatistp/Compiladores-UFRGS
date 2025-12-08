@@ -41,6 +41,8 @@ static bool entrada_eh_global(const entrada_tabela_t *entrada) {
 
 /* Emite diretivas do segmento de dados com todas as variaveis globais. */
 static void imprimir_segmento_dados(const tabela_simbolos_t *global) {
+    /* Evita warning de stack executavel. */
+    printf("\t.section .note.GNU-stack,\"\",@progbits\n");
     printf("\t.data\n");
     if (global == NULL) {
         printf("\n");

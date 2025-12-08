@@ -660,7 +660,7 @@ expressao_relacional
 
 // Nível 3: soma e subtração
 expressao_soma_subtracao
-  : expressao_mult_div_mod '+' expressao_soma_subtracao
+  : expressao_soma_subtracao '+' expressao_mult_div_mod
     {
       asd_tree_t *no_esquerdo = $1;
       asd_tree_t *no_direito = $3;
@@ -674,7 +674,7 @@ expressao_soma_subtracao
 
       iloc_expressao_binaria($$, ILOC_ADD, $1, $3);
     }
-  | expressao_mult_div_mod '-' expressao_soma_subtracao
+  | expressao_soma_subtracao '-' expressao_mult_div_mod
     {
       asd_tree_t *no_esquerdo = $1;
       asd_tree_t *no_direito = $3;
@@ -693,7 +693,7 @@ expressao_soma_subtracao
 
 // Nível 2: multiplicação, divisão e mod
 expressao_mult_div_mod
-  : expressao_unitario '*' expressao_mult_div_mod
+  : expressao_mult_div_mod '*' expressao_unitario
     {
       asd_tree_t *no_esquerdo = $1;
       asd_tree_t *no_direito = $3;
@@ -707,7 +707,7 @@ expressao_mult_div_mod
 
       iloc_expressao_binaria($$, ILOC_MULT, $1, $3);
     }
-  | expressao_unitario '/' expressao_mult_div_mod
+  | expressao_mult_div_mod '/' expressao_unitario
     {
       asd_tree_t *no_esquerdo = $1;
       asd_tree_t *no_direito = $3;
@@ -721,7 +721,7 @@ expressao_mult_div_mod
 
       iloc_expressao_binaria($$, ILOC_DIV, $1, $3);
     }
-  | expressao_unitario '%' expressao_mult_div_mod
+  | expressao_mult_div_mod '%' expressao_unitario
     {
       asd_tree_t *no_esquerdo = $1;
       asd_tree_t *no_direito = $3;
